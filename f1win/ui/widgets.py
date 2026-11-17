@@ -79,6 +79,21 @@ class Text(QWidget):
             self.setToolTip(self._text)
 
 
+class ClickText(Text):
+    """Text that acts as a link (e.g. "Update available")."""
+
+    clicked = Signal()
+
+    def __init__(self, *a, **k) -> None:
+        super().__init__(*a, **k)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, e) -> None:
+        if e.button() == Qt.MouseButton.LeftButton and self.rect().contains(e.position().toPoint()):
+            self.clicked.emit()
+
+
 class Wrap(QLabel):
     """Multi-line hint text (ui.label maxLines=2..3)."""
 

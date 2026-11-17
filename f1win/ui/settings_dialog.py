@@ -84,6 +84,7 @@ def stylesheet(t) -> str:
 TIPS = {
     # General
     "start_win": "Launch F1DockTimers automatically when you sign in to Windows.",
+    "auto_update": "Ask GitHub once a day whether a newer F1DockTimers exists. Sends no personal data.",
     "start_min": "On: start quietly in the tray. Off: open the panel at launch.",
     "widget_on": "A movable F1 panel that stays on your desktop.",
     "default_tab": "Tab the panel opens on. Live and Grid take over automatically during a session / after qualifying.",
@@ -156,6 +157,7 @@ class SettingsDialog(QDialog):
     refresh_requested = Signal()
     clear_cache_requested = Signal()
     reopen_requested = Signal()
+    check_updates_requested = Signal()
 
     def __init__(self, settings, store, theme, parent=None) -> None:
         super().__init__(parent)
@@ -284,6 +286,14 @@ class SettingsDialog(QDialog):
         b2.clicked.connect(self._clear_cache)
         row.addWidget(b1)
         row.addWidget(b2)
+        row.addStretch(1)
+        f.addRow(row)
+        self.auto_update = self._check("Check for updates automatically (once a day)", s.check_updates)
+        f.addRow(self.auto_update)
+        row = QHBoxLayout()
+        b5 = QPushButton(f"Check for updates (you have {VERSION})")
+        b5.clicked.connect(self.check_updates_requested)
+        row.addWidget(b5)
         row.addStretch(1)
         f.addRow(row)
         row = QHBoxLayout()
@@ -702,6 +712,7 @@ class SettingsDialog(QDialog):
         s = self.s
         s.start_with_windows = self.start_win.isChecked()
         s.start_minimized = self.start_min.isChecked()
+        s.check_updates = self.auto_update.isChecked()
         s.widget_enabled = self.widget_on.isChecked()
         for k, v in self._pill_values().items():
             setattr(s, k, v)

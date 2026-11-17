@@ -1,6 +1,6 @@
 ; Inno Setup 6 script. Per-user install, no admin rights needed.
 #ifndef AppVersion
-  #define AppVersion "1.0.2"
+  #define AppVersion "1.0.3"
 #endif
 
 [Setup]
@@ -41,6 +41,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\F1DockTimers.exe"; Parameters: "--show"; Description: "Launch F1DockTimers"; Flags: nowait postinstall skipifsilent
+; In-app updates install silently: start the new version again afterwards.
+Filename: "{app}\F1DockTimers.exe"; Parameters: "--show"; Flags: nowait skipifnotsilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C taskkill /IM F1DockTimers.exe /F"; Flags: runhidden; RunOnceId: "KillApp"

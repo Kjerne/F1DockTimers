@@ -12,6 +12,7 @@ The app only sends plain HTTPS requests that download public Formula 1 data:
 | `api.jolpi.ca` (Jolpica-F1) | Calendar, standings, results, qualifying | Every few hours |
 | `api.openf1.org` (OpenF1) | Session results; live timing on the Sponsor plan | After sessions; every 15 s near a session with Sponsor |
 | `livetiming.formula1.com` | Revised session start times; the live stream only if you choose "OpenF1 Free + F1 live stream" | During race weekends |
+| `api.github.com`, `github.com` | Checks once a day whether a newer F1DockTimers exists; downloads it only when you click Install (turn off under Settings › General) | Daily / on request |
 | `en.wikipedia.org` | Opens in your browser only when you click a driver, team or race | On click |
 
 These requests contain no personal data. As with any website, the services see your IP address and

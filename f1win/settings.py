@@ -81,6 +81,12 @@ class Settings:
     openf1_username: str = ""
     debug_force_tabs: bool = False
 
+    # Updates
+    check_updates: bool = True             # ask GitHub once a day if a newer release exists
+    update_checked_at: float = 0.0
+    update_notified: str = ""              # version already announced (one toast per version)
+    skipped_version: str = ""
+
     # ── persistence ─────────────────────────────────────────────────────────
 
     @staticmethod
@@ -159,7 +165,8 @@ class Settings:
         self.favorite_team = self.favorite_team.strip().lower()[:32]
 
     # Not carried between PCs: window positions depend on the monitors there.
-    MACHINE_SPECIFIC = ("widget_geometry", "start_with_windows")
+    MACHINE_SPECIFIC = ("widget_geometry", "start_with_windows", "update_checked_at", "update_notified",
+                        "skipped_version")
 
     def export_to(self, file: Path) -> None:
         """Write a shareable copy. Never contains secrets (the OpenF1 password is

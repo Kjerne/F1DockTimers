@@ -24,6 +24,7 @@ from .services import autostart
 from .services.notifier import Notifier
 from .services.poller import Poller
 from .services.store import DataStore
+from .services.updater import RELEASES_PAGE, Updater
 from .settings import Settings
 from .ui.desktop_widget import DesktopWidget
 from .ui.popup import TrayPopup
@@ -111,6 +112,15 @@ class F1App:
         self.poller.start()
         self.notifier.start()
 
+        self.updater = Updater(self.settings)
+        self.updater.available.connect(self._update_available)
+        self.updater.checked.connect(self._update_checked)
+        self.updater.failed.connect(self._update_failed)
+        self.updater.ready_to_quit.connect(self.quit)
+        self.tray.messageClicked.connect(self._toast_clicked)
+        self._progress = None
+        self.updater.start()
+
         if self.settings.taskbar_pill:
             QTimer.singleShot(800, lambda: self.show_pill(True))
         if self.settings.widget_enabled or args.widget:
@@ -132,6 +142,9 @@ class F1App:
         return Ctx(self.store, self.settings, self.theme, self.tracks, self.open_link)
 
     def _wire_panel(self, panel) -> None:
+        panel.update_clicked.connect(self.prompt_update)
+        if getattr(self, "updater", None) is not None and self.updater.latest:
+            panel.set_update(self.updater.latest["version"])
         panel.refresh_requested.connect(lambda: self.poller.refresh_all())
         panel.settings_requested.connect(self.open_settings)
 
@@ -140,6 +153,99 @@ class F1App:
         if link:
             from PySide6.QtCore import QUrl
             QDesktopServices.openUrl(QUrl(link))
+
+    # ── updates ─────────────────────────────────────────────────────────────
+
+    def _panels(self):
+        return [self.popup.panel] + ([self.widget.panel] if self.widget else [])
+
+    def _update_available(self, rel: dict) -> None:
+        v = rel["version"]
+        if v == self.settings.skipped_version:
+            return
+        for panel in self._panels():
+            panel.set_update(v)
+        self.act_update.setText(f"Install update {v}…")
+        self.act_update.setVisible(True)
+        if self.settings.update_notified != v:
+            self.settings.update_notified = v
+            self.settings.save()
+            self._toast_is_update = True
+            self.tray.showMessage(f"{APP_TITLE} {v} is available",
+                                  "Click here, or use \"Install update\" in the tray menu.",
+                                  app_icon(self.theme.accent), 15000)
+
+    def _toast_clicked(self) -> None:
+        if getattr(self, "_toast_is_update", False):
+            self._toast_is_update = False
+            self.prompt_update()
+
+    def _update_checked(self, newer: bool, message: str) -> None:
+        if newer:
+            self.prompt_update()
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(None, APP_TITLE, message)
+
+    def prompt_update(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtWidgets import QMessageBox
+        rel = self.updater.latest
+        if rel is None:
+            self.updater.check(manual=True)
+            return
+        box = QMessageBox()
+        box.setWindowTitle(f"{APP_TITLE} update")
+        box.setWindowIcon(app_icon(self.theme.accent))
+        box.setText(f"<b>Version {rel['version']}</b> is available. You have {VERSION}.")
+        notes = rel["notes"].strip()
+        box.setInformativeText((notes[:600] + ("…" if len(notes) > 600 else "")) if notes else "")
+        can = self.updater.can_install()
+        install = box.addButton("Install and restart" if can else "Open download page",
+                                QMessageBox.ButtonRole.AcceptRole)
+        page = box.addButton("Release page", QMessageBox.ButtonRole.HelpRole) if can else None
+        skip = box.addButton("Skip this version", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(install)
+        self._bring_to_front(box)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is install:
+            if can:
+                self._start_install()
+            else:
+                QDesktopServices.openUrl(QUrl(rel["url"] or RELEASES_PAGE))
+        elif page is not None and clicked is page:
+            QDesktopServices.openUrl(QUrl(rel["url"] or RELEASES_PAGE))
+        elif clicked is skip:
+            self.settings.skipped_version = rel["version"]
+            self.settings.save()
+            for panel in self._panels():
+                panel.set_update("")
+            self.act_update.setVisible(False)
+
+    def _start_install(self) -> None:
+        from PySide6.QtWidgets import QProgressDialog
+        dlg = QProgressDialog("Downloading the update…", "Cancel", 0, 100)
+        dlg.setWindowTitle(f"{APP_TITLE} update")
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        dlg.canceled.connect(self.updater.cancel)
+        self.updater.progress.connect(lambda a, b: dlg.setValue(int(a * 100 / b)) if b else None)
+        self.updater.failed.connect(dlg.close)
+        self.updater.ready_to_quit.connect(dlg.close)
+        self._progress = dlg
+        dlg.show()
+        self.updater.install()
+
+    def _update_failed(self, message: str) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtWidgets import QMessageBox
+        log.warning("update failed: %s", message)
+        QMessageBox.warning(None, f"{APP_TITLE} update", message + "\n\nYou can download it from the release page.")
+        if self.updater.latest:
+            QDesktopServices.openUrl(QUrl(self.updater.latest["url"] or RELEASES_PAGE))
 
     def _notify(self, title: str, message: str) -> None:
         self.tray.showMessage(title, message, app_icon(self.theme.accent), 15000)
@@ -168,6 +274,11 @@ class F1App:
         self.act_top.toggled.connect(self._set_on_top)
         m.addAction(self.act_top)
         m.addSeparator()
+        self.act_update = QAction("Install update…", m)
+        self.act_update.triggered.connect(self.prompt_update)
+        self.act_update.setVisible(False)
+        m.addAction(self.act_update)
+        m.addAction("Check for updates", lambda: self.updater.check(manual=True))
         m.addAction("Settings…", self.open_settings)
         self.act_start = QAction("Start with Windows", m, checkable=True)
         self.act_start.setChecked(autostart.is_enabled())
@@ -341,6 +452,7 @@ class F1App:
         d.refresh_requested.connect(lambda: self.poller.refresh_all(force=True))
         d.clear_cache_requested.connect(self._clear_cache)
         d.reopen_requested.connect(lambda: QTimer.singleShot(150, self.open_settings))
+        d.check_updates_requested.connect(lambda: self.updater.check(manual=True))
         d.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         d.finished.connect(self._settings_closed)
         d.destroyed.connect(self._settings_closed)
@@ -434,6 +546,8 @@ def main(argv=None) -> int:
     p.add_argument("--screenshots", metavar="DIR", help=argparse.SUPPRESS)
     p.add_argument("--tabs", default="schedule,grid,live,results,drivers,constructors", help=argparse.SUPPRESS)
     p.add_argument("--version", action="version", version=VERSION)
+    p.add_argument("--wait-pid", type=int, default=0, help=argparse.SUPPRESS)
+    p.add_argument("--replaces", default="", help=argparse.SUPPRESS)
     args = p.parse_args(argv)
 
     os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
@@ -445,6 +559,10 @@ def main(argv=None) -> int:
     qapp.setQuitOnLastWindowClosed(False)
     setup_logging(args.debug)
 
+    if args.wait_pid:
+        # Started by the in-app updater: let the old version exit first.
+        from .services.updater import wait_for_pid
+        wait_for_pid(args.wait_pid)
     name = server_name()
     if not args.screenshots:
         sock = QLocalSocket()
@@ -481,5 +599,9 @@ def main(argv=None) -> int:
         screenshots(app, Path(args.screenshots), args.tabs.split(","))
 
     qapp.aboutToQuit.connect(app.poller.stop)
+    if args.replaces:
+        import threading
+        from .services.updater import remove_replaced
+        threading.Thread(target=remove_replaced, args=(args.replaces,), daemon=True).start()
     log.info("%s %s started", APP_TITLE, VERSION)
     return qapp.exec()

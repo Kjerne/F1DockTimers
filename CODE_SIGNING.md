@@ -1,5 +1,8 @@
 # Code signing policy
 
+> **Status: pending.** The application to SignPath Foundation is under review. Until it is
+> approved, releases are **not signed** yet (Windows may show a SmartScreen warning).
+
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 

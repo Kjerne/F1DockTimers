@@ -15,7 +15,7 @@ from .tabs.common import Ctx
 from .tabs.live import LiveTab
 from .tabs.schedule import ScheduleTab
 from .tabs.tables import ConstructorsTab, DriversTab, GridTab, ResultsTab
-from .widgets import Divider, FlagGlyph, IconButton, PillButton, Text
+from .widgets import ClickText, Divider, FlagGlyph, IconButton, PillButton, Text
 
 PIN_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" '
            'stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/>'
@@ -65,6 +65,7 @@ class F1Panel(QWidget):
     settings_requested = Signal()
     refresh_requested = Signal()
     pin_toggled = Signal(bool)
+    update_clicked = Signal()
 
     def __init__(self, ctx: Ctx, mode: str = "popup", parent=None) -> None:
         super().__init__(parent)
@@ -73,6 +74,7 @@ class F1Panel(QWidget):
         self.view = "schedule"
         self.bg_opacity = 1.0
         self.pinned = False
+        self.update_version = ""
         self.tab_widget = None
         self._tabs_sig: list = []
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -146,11 +148,22 @@ class F1Panel(QWidget):
         foot.addWidget(self.footer, 1)
         refresh = IconButton(REFRESH_SVG, t, "Refresh (R)", 12)
         refresh.clicked.connect(self.refresh_requested)
+        self.update_link = ClickText("", t, 10, True, t.accent, Qt.AlignmentFlag.AlignRight)
+        self.update_link.setToolTip("A newer version is available. Click to update.")
+        self.update_link.clicked.connect(self.update_clicked)
+        self.update_link.setVisible(bool(self.update_version))
+        self.update_link.setText(f"Update {self.update_version} available" if self.update_version else "")
+        foot.addWidget(self.update_link)
         foot.addWidget(refresh)
         root.addLayout(foot)
 
         self._tabs_sig = []
         self.rebuild_body()
+
+    def set_update(self, version: str) -> None:
+        self.update_version = version or ""
+        self.update_link.setText(f"Update {version} available" if version else "")
+        self.update_link.setVisible(bool(version))
 
     def _toggle_pin(self) -> None:
         self.pinned = not self.pinned

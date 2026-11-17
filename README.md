@@ -33,6 +33,12 @@ uninstaller. The GitHub workflow builds it on every `v*` tag. Locally it needs I
 **Portable:** download `F1DockTimers-<version>-portable.exe` and run it from anywhere. It's one file and
 nothing gets installed, but it starts a couple of seconds slower because it unpacks itself on each launch.
 
+**Updating:** the app checks GitHub once a day and shows "Update x.y.z available" in the panel, a
+notification and an **Install update** entry in the tray menu. One click downloads the new version,
+checks it against GitHub's published SHA-256 checksum (and, once releases are signed, against the
+same publisher's signature), installs it and restarts. The installed app updates through the
+installer; the portable exe replaces itself. You can turn the check off in Settings › General.
+
 The exe isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click
 **More info → Run anyway**. You don't need Python for either download.
 
@@ -106,6 +112,9 @@ Project layout: `f1win/core` (pure logic: time, sessions, parsers, tracks), `f1w
 from the original plugin, with the parity checklist).
 
 ## Code signing policy
+
+> **Status: pending.** The application to SignPath Foundation is under review. Until it is
+> approved, releases are **not signed** yet (Windows may show a SmartScreen warning).
 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
