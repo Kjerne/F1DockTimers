@@ -1,0 +1,49 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Test and build
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          ./build/build.ps1
+      - name: Smoke test the executable
+        shell: pwsh
+        run: |
+          $p = Start-Process dist/F1DockTimers/F1DockTimers.exe -ArgumentList "--minimized" -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { throw "F1DockTimers.exe exited early with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id
+          $q = Get-ChildItem dist -Filter "*-portable.exe" | Select-Object -First 1
+          $p2 = Start-Process $q.FullName -ArgumentList "--minimized" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p2.HasExited) { throw "portable exe exited early with code $($p2.ExitCode)" }
+          Get-Process F1DockTimers*, F1DockTimers-* -ErrorAction SilentlyContinue | Stop-Process
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F1DockTimers-windows
+          path: |
+            dist/*-portable.exe
+            dist/*-setup.exe
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*-portable.exe
+            dist/*-setup.exe
