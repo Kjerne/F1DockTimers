@@ -514,7 +514,7 @@ class PillPreview(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), self.bar)
         w, h = self.pill_size
-        r = QRectF(self.width() - w - 70, (self.height() - h) / 2, w, h)
+        r = QRectF(self.width() - w - 96, (self.height() - h) / 2, w, h)
         pad = max(4, min(14, h * 0.3)) if self.style_.radius > 0 else 6
         paint_pill(p, r, self.style_, self.lines[0], self.lines[1], self.lines[2], False, self.max_px,
                    self.autofit, pad)
@@ -522,4 +522,4 @@ class PillPreview(QWidget):
         f.setPixelSize(12)
         p.setFont(f)
         p.setPen(QColor("#FFFFFF"))
-        p.drawText(QRectF(self.width() - 64, 0, 60, self.height()), int(Qt.AlignmentFlag.AlignCenter), "^ ENG 19:10")
+        p.drawText(QRectF(self.width() - 92, 0, 88, self.height()), int(Qt.AlignmentFlag.AlignCenter), "^  ENG  19:10")

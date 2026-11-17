@@ -198,6 +198,7 @@ class F1Panel(QWidget):
         while self.tabbar.count():
             item = self.tabbar.takeAt(0)
             if item.widget():
+                item.widget().hide()          # never painted again, even before deletion
                 item.widget().deleteLater()
         for tid, label in tabs:
             b = PillButton(label, self.ctx.theme, tid == self.view)

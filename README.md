@@ -6,6 +6,23 @@ the same panel, the same six tabs and the same behaviour. It runs as a tray
 popup, a desktop widget and a small countdown pill on the taskbar. All three can run together and
 share one data cache.
 
+## Screenshots
+
+<p>
+  <img src="docs/screenshots/panel-schedule.png" width="300" alt="Schedule tab: circuit, start lights, countdown and session times">
+  <img src="docs/screenshots/panel-live.png" width="300" alt="Live tab: final classification of the last session">
+  <img src="docs/screenshots/panel-drivers.png" width="300" alt="Driver standings">
+</p>
+<p>
+  <img src="docs/screenshots/panel-results.png" width="300" alt="Last race result">
+  <img src="docs/screenshots/panel-constructors.png" width="300" alt="Constructor standings">
+  <img src="docs/screenshots/settings-taskbar.png" width="300" alt="Taskbar countdown settings">
+</p>
+
+The taskbar countdown in three styles:
+
+<img src="docs/screenshots/taskbar-styles.png" width="520" alt="Taskbar countdown styles">
+
 ## Install and run
 
 **Installer (recommended):** download `F1DockTimers-<version>-setup.exe` from Releases and run it. It installs
@@ -87,6 +104,19 @@ Project layout: `f1win/core` (pure logic: time, sessions, parsers, tracks), `f1w
 `f1win/ui` (theme, panel, tabs, popup, desktop widget, taskbar pill, settings), `tests/`, `build/`
 (PyInstaller spec, Inno Setup script, build script), and `docs/SOURCE-FINDINGS.md` (what was taken
 from the original plugin, with the parity checklist).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+* Committers and reviewers: [Kjerne](https://github.com/Kjerne)
+* Approvers: [Kjerne](https://github.com/Kjerne)
+
+Only release files built from this repository by its GitHub Actions workflow are signed. See
+[CODE_SIGNING.md](CODE_SIGNING.md) for the full policy and [PRIVACY.md](PRIVACY.md) for privacy:
+this program does not transfer any personal information to other networked systems unless
+specifically requested by the user or the person installing or operating it.
 
 ## Credits
 
