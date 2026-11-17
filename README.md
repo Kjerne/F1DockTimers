@@ -8,12 +8,12 @@ share one data cache.
 
 ## Install and run
 
-**Installer (recommended):** download `F1DockTimers-1.0.0-setup.exe` from Releases and run it. It installs
+**Installer (recommended):** download `F1DockTimers-<version>-setup.exe` from Releases and run it. It installs
 per user (no admin rights), adds a Start menu entry, optionally starts with Windows, and includes an
 uninstaller. The GitHub workflow builds it on every `v*` tag. Locally it needs Inno Setup 6
 (`winget install JRSoftware.InnoSetup`).
 
-**Portable:** download `F1DockTimers-1.0.0-portable.exe` and run it from anywhere. It's one file and
+**Portable:** download `F1DockTimers-<version>-portable.exe` and run it from anywhere. It's one file and
 nothing gets installed, but it starts a couple of seconds slower because it unpacks itself on each launch.
 
 The exe isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click
