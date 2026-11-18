@@ -3,7 +3,7 @@
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
-VERSION = os.environ.get("F1DT_VERSION", "1.0.3")
+VERSION = os.environ.get("F1DT_VERSION", "1.0.4")
 
 a = Analysis(
     [os.path.join(ROOT, "launch.pyw")],

@@ -35,11 +35,10 @@ nothing gets installed, but it starts a couple of seconds slower because it unpa
 
 **Updating:** the app checks GitHub once a day and shows "Update x.y.z available" in the panel, a
 notification and an **Install update** entry in the tray menu. One click downloads the new version,
-checks it against GitHub's published SHA-256 checksum (and, once releases are signed, against the
-same publisher's signature), installs it and restarts. The installed app updates through the
+checks it against GitHub's published SHA-256 checksum, installs it and restarts. The installed app updates through the
 installer; the portable exe replaces itself. You can turn the check off in Settings › General.
 
-The exe isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click
+The exe isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click
 **More info → Run anyway**. You don't need Python for either download.
 
 **From source:**
@@ -111,21 +110,9 @@ Project layout: `f1win/core` (pure logic: time, sessions, parsers, tracks), `f1w
 (PyInstaller spec, Inno Setup script, build script), and `docs/SOURCE-FINDINGS.md` (what was taken
 from the original plugin, with the parity checklist).
 
-## Code signing policy
+## Privacy
 
-> **Status: pending.** The application to SignPath Foundation is under review. Until it is
-> approved, releases are **not signed** yet (Windows may show a SmartScreen warning).
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-* Committers and reviewers: [Kjerne](https://github.com/Kjerne)
-* Approvers: [Kjerne](https://github.com/Kjerne)
-
-Only release files built from this repository by its GitHub Actions workflow are signed. See
-[CODE_SIGNING.md](CODE_SIGNING.md) for the full policy and [PRIVACY.md](PRIVACY.md) for privacy:
-this program does not transfer any personal information to other networked systems unless
-specifically requested by the user or the person installing or operating it.
+The app does not collect or send personal data. See [PRIVACY.md](PRIVACY.md).
 
 ## Credits
 

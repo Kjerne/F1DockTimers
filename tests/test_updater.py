@@ -52,10 +52,10 @@ def test_assets_without_checksum_or_from_elsewhere_are_refused():
 
 
 def test_signature_rules():
-    signed = ("Valid", "CN=SignPath Foundation")
+    signed = ("Valid", "CN=Example Publisher")
     unsigned = ("NotSigned", "")
     assert up.signature_ok(unsigned, unsigned)[0]                 # today: unsigned -> unsigned ok (checksum still checked)
-    assert up.signature_ok(unsigned, signed)[0]                   # first signed release
+    assert up.signature_ok(unsigned, signed)[0]                   # a later signed release
     assert up.signature_ok(signed, signed)[0]
     assert not up.signature_ok(signed, unsigned)[0]               # never downgrade to unsigned
     assert not up.signature_ok(signed, ("Valid", "CN=Someone Else"))[0]

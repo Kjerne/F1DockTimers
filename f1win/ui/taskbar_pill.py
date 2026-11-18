@@ -305,6 +305,11 @@ class TaskbarPill(QWidget):
         self.guard = QTimer(self)
         self.guard.setInterval(2000)
         self.guard.timeout.connect(self._guard)
+        # Clicking the taskbar lifts it over us; re-raise quickly (cheap SetWindowPos only).
+        self.raiser = QTimer(self)
+        self.raiser.setInterval(500)
+        self.raiser.timeout.connect(self._raise)
+        self._fg_watch: winshell.ForegroundWatch | None = None
 
     # ── state ───────────────────────────────────────────────────────────────
 
@@ -314,11 +319,28 @@ class TaskbarPill(QWidget):
         self.place()
         self.show()
         self.guard.start()
+        self.raiser.start()
+        if self._fg_watch is None:
+            self._fg_watch = winshell.ForegroundWatch(self._foreground_changed)
         QTimer.singleShot(50, self._guard)
 
     def stop(self) -> None:
         self.guard.stop()
+        self.raiser.stop()
+        if self._fg_watch is not None:
+            self._fg_watch.close()
+            self._fg_watch = None
         self.hide()
+
+    def _foreground_changed(self) -> None:
+        # The taskbar (or its flyout) raises itself right away and again after its animation.
+        # _guard also hides us at once if the new foreground window is a fullscreen game.
+        for ms in (0, 150, 500):
+            QTimer.singleShot(ms, self._guard)
+
+    def _raise(self) -> None:
+        if self.isVisible() and self._press is None:
+            winshell.keep_topmost(int(self.winId()))
 
     def restyle(self) -> None:
         self.style_ = PillStyle.resolve(self.settings, self.ctx.theme)

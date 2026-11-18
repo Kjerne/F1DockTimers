@@ -133,6 +133,59 @@ def bring_to_front(hwnd: int) -> None:
         pass
 
 
+EVENT_SYSTEM_FOREGROUND = 0x0003
+WINEVENT_OUTOFCONTEXT = 0x0000
+WINEVENT_SKIPOWNPROCESS = 0x0002
+
+if IS_WIN:
+    WinEventProc = ctypes.WINFUNCTYPE(None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND, wintypes.LONG,
+                                      wintypes.LONG, wintypes.DWORD, wintypes.DWORD)
+    user32.SetWinEventHook.restype = wintypes.HANDLE
+    user32.SetWinEventHook.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.HMODULE, WinEventProc,
+                                       wintypes.DWORD, wintypes.DWORD, wintypes.DWORD]
+    user32.UnhookWinEvent.argtypes = [wintypes.HANDLE]
+
+
+class ForegroundWatch:
+    """Calls `callback()` whenever another app's window becomes the foreground one.
+
+    Clicking the taskbar or its tray chevron makes the taskbar foreground and lifts it
+    above our topmost pill; this lets the pill raise itself again at once. The hook is
+    out-of-context, so it runs on the Qt thread's message loop and costs nothing idle.
+    """
+
+    def __init__(self, callback) -> None:
+        self._cb = callback
+        self._proc = None
+        self._hook = None
+        if not IS_WIN:
+            return
+        try:
+            self._proc = WinEventProc(lambda *_a: self._fire())
+            self._hook = user32.SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None, self._proc,
+                                                0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)
+        except Exception:
+            self._hook = None
+
+    def _fire(self) -> None:
+        try:
+            self._cb()
+        except Exception:
+            pass
+
+    @property
+    def active(self) -> bool:
+        return bool(self._hook)
+
+    def close(self) -> None:
+        if self._hook:
+            try:
+                user32.UnhookWinEvent(self._hook)
+            except Exception:
+                pass
+        self._hook = None
+
+
 def keep_topmost(hwnd: int) -> None:
     """Re-assert topmost: clicking the taskbar lifts it above other topmost windows."""
     if not IS_WIN or not hwnd:

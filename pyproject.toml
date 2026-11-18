@@ -1,6 +1,6 @@
 [project]
 name = "f1docktimers"
-version = "1.0.3"
+version = "1.0.4"
 description = "F1 schedule, countdowns, live timing and standings for the Windows 11 tray, desktop and taskbar. Inspired by the Noctalia F1 plugin."
 requires-python = ">=3.11"
 license = { text = "MIT" }
