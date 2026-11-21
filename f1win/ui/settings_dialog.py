@@ -314,13 +314,20 @@ class SettingsDialog(QDialog):
         row.addStretch(1)
         f.addRow(row)
         self.auto_update = self._check(T('Check for updates automatically (once a day)'), s.check_updates)
-        f.addRow(self.auto_update)
-        row = QHBoxLayout()
-        b5 = QPushButton(T('Check for updates (you have {version})', version=VERSION))
-        b5.clicked.connect(self.check_updates_requested)
-        row.addWidget(b5)
-        row.addStretch(1)
-        f.addRow(row)
+        from ..services.packaging import is_packaged
+        if is_packaged():
+            # Microsoft Store copy: the Store installs updates; the GitHub check is switched off.
+            self.auto_update.hide()
+            f.addRow(self._hint(T('Version {version}. Updates come automatically from the Microsoft Store.',
+                                  version=VERSION)))
+        else:
+            f.addRow(self.auto_update)
+            row = QHBoxLayout()
+            b5 = QPushButton(T('Check for updates (you have {version})', version=VERSION))
+            b5.clicked.connect(self.check_updates_requested)
+            row.addWidget(b5)
+            row.addStretch(1)
+            f.addRow(row)
         row = QHBoxLayout()
         b3 = QPushButton(T('Export settings…'))
         b3.setToolTip(T('Save all settings to a .json file (no passwords)'))

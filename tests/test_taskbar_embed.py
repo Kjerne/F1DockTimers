@@ -91,3 +91,12 @@ def test_widgets_button_lookup_is_safe_here():
     r = w.rect()
     w.stop()
     assert r is None or (len(r) == 4 and r[2] > r[0])
+
+
+def test_memory_trim_frees_working_set():
+    from f1win.services import memory
+    junk = bytearray(30 * 1024 * 1024)          # touch 30 MB so there is something to give back
+    junk[::4096] = b"x" * len(junk[::4096])
+    before = memory.working_set_mb()
+    assert memory.trim()
+    assert memory.working_set_mb() < before

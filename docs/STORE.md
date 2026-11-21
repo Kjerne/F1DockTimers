@@ -19,10 +19,11 @@ through its package's start-up task).
 ## Each release
 
 1. Build the app: `.\build\build.ps1`
-2. Build the Store package with the three values from step 3:
+2. Build the Store package (the identity from step 3 is already filled in as the default:
+   `Kjerne.F1DockTimers`, Store ID `9PD3M7J1SF52`):
 
    ```powershell
-   .\build\build-msix.ps1 -IdentityName "12345Kjerne.F1DockTimers" -Publisher "CN=ABCD1234-..." -PublisherDisplayName "Kjerne"
+   .\build\build-msix.ps1
    ```
 
    This writes `dist\F1DockTimers-<version>.msix`. It is unsigned on purpose; the Store signs it.

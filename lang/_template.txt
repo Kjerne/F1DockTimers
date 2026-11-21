@@ -227,6 +227,7 @@ Standings refresh =
 Refresh data now = 
 Clear cache = 
 Check for updates automatically (once a day) = 
+Version {version}. Updates come automatically from the Microsoft Store. = 
 Check for updates (you have {version}) = 
 Export settings… = 
 Save all settings to a .json file (no passwords) = 

@@ -20,7 +20,7 @@ from .core.sessions import live_active, next_session, session_ts
 from .core.timeutil import fmt_datetime, fmt_long, fmt_short, now_sec
 from .core.tracks import TrackLibrary
 from .paths import cache_dir, resource_dir
-from .services import autostart
+from .services import autostart, packaging
 from .services.notifier import Notifier
 from .services.poller import Poller
 from .services.store import DataStore
@@ -90,7 +90,12 @@ class F1App:
     def __init__(self, qapp: QApplication, args) -> None:
         self.qapp = qapp
         self.args = args
+        # First launch ever (no settings file yet): open the panel once, so a new user sees the app
+        # is running instead of only a tray icon.
+        self.first_run = not Settings.file().exists()
         self.settings = Settings.load()
+        if self.first_run:
+            self.settings.save()          # so this happens only once
         self.store = DataStore()
         if self.store.load_cache():
             log.info("restored cached data")
@@ -116,6 +121,14 @@ class F1App:
         self.poller.start()
         self.notifier.start()
 
+        # Hand idle memory back to Windows: 20 s after start, shortly after the panel, a menu or
+        # Settings closes, and every 15 minutes while nothing is open (Task Manager ~55 MB -> <10 MB).
+        self._ui_seen, self._trimmed_at = True, 0.0
+        self._trim_timer = QTimer()          # F1App is not a QObject; kept alive by this reference
+        self._trim_timer.setInterval(20_000)
+        self._trim_timer.timeout.connect(self._maybe_trim)
+        self._trim_timer.start()
+
         self.updater = Updater(self.settings)
         self.updater.available.connect(self._update_available)
         self.updater.checked.connect(self._update_checked)
@@ -137,7 +150,7 @@ class F1App:
                 self.settings.start_with_windows = autostart_on
         if autostart_on:
             autostart.set_enabled(True)      # refresh the path
-        if args.show or not (self.settings.start_minimized or args.minimized):
+        if args.show or self.first_run or not (self.settings.start_minimized or args.minimized):
             QTimer.singleShot(400, self.open_panel)
 
     # ── plumbing ────────────────────────────────────────────────────────────
@@ -282,7 +295,8 @@ class F1App:
         self.act_update.triggered.connect(self.prompt_update)
         self.act_update.setVisible(False)
         m.addAction(self.act_update)
-        m.addAction(T('Check for updates'), lambda: self.updater.check(manual=True))
+        if not packaging.is_packaged():          # the Microsoft Store updates its copy itself
+            m.addAction(T('Check for updates'), lambda: self.updater.check(manual=True))
         m.addAction(T('Settings…'), self.open_settings)
         self.act_start = QAction(T('Start with Windows'), m, checkable=True)
         self.act_start.setChecked(autostart.is_enabled())
@@ -434,6 +448,19 @@ class F1App:
         self._sync_menu()
 
     # ── settings ────────────────────────────────────────────────────────────
+
+    def _maybe_trim(self) -> None:
+        import time as _time
+        from .services import memory
+        busy = (self.popup.isVisible() or self.settings_dialog is not None
+                or QApplication.activePopupWidget() is not None or QApplication.activeModalWidget() is not None)
+        if busy:
+            self._ui_seen = True
+            return
+        now = _time.monotonic()
+        if self._ui_seen or now - self._trimmed_at > 15 * 60:
+            memory.trim()
+            self._ui_seen, self._trimmed_at = False, now
 
     def _settings_closed(self) -> None:
         self.settings_dialog = None

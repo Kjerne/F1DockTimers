@@ -2,12 +2,14 @@
 # folder build (dist\F1DockTimers, made by build.ps1). The package is unsigned on purpose:
 # Partner Center signs it when you submit it to the Store.
 #
-#   .\build\build-msix.ps1 -IdentityName "12345Kjerne.F1DockTimers" -Publisher "CN=ABCD-1234-..." -PublisherDisplayName "Kjerne"
+#   .\build\build-msix.ps1
 #
-# The three values come from Partner Center > your app > Product management > Product identity.
+# The identity values come from Partner Center > your app > Product management > Product identity.
+# Defaults: F1DockTimers' own identity (Partner Center, Store ID 9PD3M7J1SF52). Not secret: every
+# published package shows them.
 param(
-    [Parameter(Mandatory = $true)][string]$IdentityName,
-    [Parameter(Mandatory = $true)][string]$Publisher,
+    [string]$IdentityName = "Kjerne.F1DockTimers",
+    [string]$Publisher = "CN=728D8C06-835B-4ACC-9EF3-8AA40A08949B",
     [string]$PublisherDisplayName = "Kjerne",
     [string]$Version = ""
 )
