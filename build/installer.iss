@@ -1,13 +1,20 @@
 ; Inno Setup 6 script. Per-user install, no admin rights needed.
 #ifndef AppVersion
-  #define AppVersion "1.0.4"
+  #define AppVersion "1.0.5"
 #endif
 
 [Setup]
 AppId={{6E1B7C52-3A8F-4D9B-9F0E-F1A5C0DE2026}
 AppName=F1DockTimers
 AppVersion={#AppVersion}
-AppPublisher=Personal build
+AppPublisher=Kjerne
+AppPublisherURL=https://github.com/Kjerne/F1DockTimers
+AppSupportURL=https://github.com/Kjerne/F1DockTimers/issues
+AppUpdatesURL=https://github.com/Kjerne/F1DockTimers/releases
+AppCopyright=Copyright (c) 2026 Kjerne
+VersionInfoCompany=Kjerne
+VersionInfoDescription=F1DockTimers Setup
+VersionInfoVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\F1DockTimers
 DefaultGroupName=F1DockTimers
 DisableProgramGroupPage=yes

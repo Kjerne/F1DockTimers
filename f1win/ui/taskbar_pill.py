@@ -22,13 +22,13 @@ import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QGuiApplication, QPainter, QPainterPath
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QGuiApplication, QImage, QPainter, QPainterPath
+from PySide6.QtWidgets import QApplication, QToolTip, QWidget
 
 from ..core.sessions import SESSION_NAMES, current_session, live_active, next_session
 from ..core.teams import friendly_flag
 from ..core.timeutil import MONTHS, fmt_clock, fmt_datetime, fmt_long, fmt_short, now_sec, to_local
-from ..services import winshell
+from ..services import taskbar_embed, winshell
 
 SHORT = {"fp1": "FP1", "fp2": "FP2", "fp3": "FP3", "sprint_quali": "SQ", "sprint": "Sprint",
          "quali": "Quali", "race": "GP"}
@@ -310,16 +310,21 @@ class TaskbarPill(QWidget):
         self.raiser.setInterval(500)
         self.raiser.timeout.connect(self._raise)
         self._fg_watch: winshell.ForegroundWatch | None = None
+        self._embed: taskbar_embed.EmbeddedHost | None = None   # set while living inside the taskbar
+        self._embed_key = None
+        self._embed_failed = False
 
     # ── state ───────────────────────────────────────────────────────────────
 
     def start(self) -> None:
+        self._set_mode()
         self.restyle()
         self.tick(now_sec(), force=True)
         self.place()
-        self.show()
+        if self._embed is None:
+            self.show()
+            self.raiser.start()
         self.guard.start()
-        self.raiser.start()
         if self._fg_watch is None:
             self._fg_watch = winshell.ForegroundWatch(self._foreground_changed)
         QTimer.singleShot(50, self._guard)
@@ -327,6 +332,7 @@ class TaskbarPill(QWidget):
     def stop(self) -> None:
         self.guard.stop()
         self.raiser.stop()
+        self._drop_embed()
         if self._fg_watch is not None:
             self._fg_watch.close()
             self._fg_watch = None
@@ -338,15 +344,123 @@ class TaskbarPill(QWidget):
         for ms in (0, 150, 500):
             QTimer.singleShot(ms, self._guard)
 
+    @staticmethod
+    def _menu_open() -> bool:
+        # Never jump over an open menu (our tray/pill menu or another app's).
+        return QApplication.activePopupWidget() is not None or winshell.menu_is_open()
+
     def _raise(self) -> None:
-        if self.isVisible() and self._press is None:
+        if self._embed is not None:
+            self._embed.keep_on_top()
+            return
+        if self.isVisible() and self._press is None and not self._menu_open():
             winshell.keep_topmost(int(self.winId()))
 
+    # ── embedded mode (a child window inside the taskbar) ─────────────────────
+
+    def is_shown(self) -> bool:
+        return self._embed is not None or self.isVisible()
+
+    @property
+    def embedded(self) -> bool:
+        return self._embed is not None
+
+    def _set_mode(self) -> None:
+        """Switch between floating and embedded to match the setting (falls back to floating)."""
+        want = bool(getattr(self.settings, "pill_embed", False)) and winshell.IS_WIN
+        if want and self._embed is None and not self._embed_failed:
+            host = taskbar_embed.EmbeddedHost({
+                "on_press": self._e_press, "on_move": self._e_move, "on_release": self._e_release,
+                "on_double": self._e_double, "on_right": self._e_right, "on_hover": self._e_hover,
+                "cursor": lambda x: "size" if self._on_edge(QPoint(round(x / self._dpr()), 0)) else "hand"})
+            if host.create():
+                self._embed = host
+                self._embed_key = None
+                self.raiser.stop()
+                self._fs_hidden = False
+                if self.isVisible():
+                    self.hide()
+            else:
+                self._embed_failed = True          # don't retry every 2 s; floating mode instead
+        elif not want and self._embed is not None:
+            self._drop_embed()
+            if self.settings.taskbar_pill and self.guard.isActive():
+                self.show()
+                self.raiser.start()
+
+    def _drop_embed(self) -> None:
+        if self._embed is not None:
+            self._embed.destroy()
+            self._embed = None
+        QToolTip.hideText()
+
+    def _dpr(self) -> float:
+        sc = QGuiApplication.primaryScreen()
+        return sc.devicePixelRatio() if sc else 1.0
+
+    def _refresh(self) -> None:
+        if self._embed is not None:
+            self._render_embed()
+        else:
+            self.update()
+
+    def _render_embed(self, force: bool = False) -> None:
+        host = self._embed
+        if host is None:
+            return
+        g = self.geometry()
+        sc = QGuiApplication.primaryScreen()
+        dpr, sg = sc.devicePixelRatio(), sc.geometry()
+        key = (g.x(), g.y(), g.width(), g.height(), dpr, self.top, self.bottom, self.live, self._hover,
+               id(self.style_))
+        if not force and key == self._embed_key:
+            return
+        self._embed_key = key
+        img = QImage(max(1, round(g.width() * dpr)), max(1, round(g.height() * dpr)),
+                     QImage.Format.Format_ARGB32_Premultiplied)
+        img.setDevicePixelRatio(dpr)
+        img.fill(Qt.GlobalColor.transparent)
+        p = QPainter(img)
+        paint_pill(p, QRectF(0, 0, g.width(), g.height()), self.style_, self.top, self.bottom, self.live,
+                   self._hover, self._max_px(), self.settings.pill_autofit, self._pad())
+        p.end()
+        host.show_image(img, round(sg.x() + (g.x() - sg.x()) * dpr), round(sg.y() + (g.y() - sg.y()) * dpr))
+
+    def _e_press(self, x: int) -> None:
+        QToolTip.hideText()
+        self._press_at(QCursor.pos(), QPoint(round(x / self._dpr()), 0))
+
+    def _e_move(self, x: int, _dragging: bool) -> None:
+        self._move_at(QCursor.pos())
+
+    def _e_release(self, _x: int) -> None:
+        self._release_at(Qt.MouseButton.LeftButton, QCursor.pos())
+
+    def _e_double(self, x: int) -> None:
+        self._double_at(QPoint(round(x / self._dpr()), 0))
+
+    def _e_right(self) -> None:
+        QToolTip.hideText()
+        self.menu_requested.emit(QCursor.pos())
+
+    def _e_hover(self, on: bool) -> None:
+        self._hover = on
+        self._render_embed()
+        if on:
+            QTimer.singleShot(700, self._embed_tooltip)
+        else:
+            QToolTip.hideText()
+
+    def _embed_tooltip(self) -> None:
+        if self._embed is not None and self._hover and self._press is None:
+            QToolTip.showText(QCursor.pos(), self.toolTip())
+
     def restyle(self) -> None:
+        self._set_mode()
         self.style_ = PillStyle.resolve(self.settings, self.ctx.theme)
         self.tick(now_sec(), force=True)
         self.place()
-        self.update()
+        self._refresh()
 
     def tick(self, now: int, force: bool = False) -> None:
         store = self.ctx.store
@@ -358,7 +472,7 @@ class TaskbarPill(QWidget):
                             + "\n\nClick: panel · Drag: move · Drag left edge: resize · Right-click: menu")
             if self.settings.pill_width <= 0:
                 self.place()
-            self.update()
+            self._refresh()
 
     # ── geometry ────────────────────────────────────────────────────────────
 
@@ -412,6 +526,7 @@ class TaskbarPill(QWidget):
             h = s.pill_height if s.pill_height > 0 else 40
             w = max(40, bar.width() - 6)
             self.setGeometry(bar.left() + 3, tray.top() - h - 6 - s.taskbar_pill_offset, w, h)
+            self._render_embed()
             return
         if s.pill_height == -1:
             h = bar.height()
@@ -423,6 +538,7 @@ class TaskbarPill(QWidget):
         w = max(40, min(w, bar.width() // 2))
         x = max(bar.left() + 2, tray.left() - w - 6 - s.taskbar_pill_offset)
         self.setGeometry(x, bar.top() + (bar.height() - h) // 2, w, h)
+        self._render_embed()
 
     def _taskbar_under_me(self) -> bool:
         g = self.geometry()
@@ -435,6 +551,21 @@ class TaskbarPill(QWidget):
     def _guard(self) -> None:
         if not self.settings.taskbar_pill or self._press is not None:
             return
+        if self._embed is not None:
+            # Inside the taskbar Windows hides us with it (fullscreen, auto-hide); just stay
+            # alive across Explorer restarts, follow the tray's width and stay above siblings.
+            if not self._embed.alive():
+                self._embed.destroy()
+                if not self._embed.create():
+                    self._embed = None
+                    self._embed_failed = True
+                    self.show()
+                    self.raiser.start()
+                    return
+                self._embed_key = None
+            self.place()
+            self._embed.keep_on_top()
+            return
         covered = winshell.foreground_is_fullscreen() or not self._taskbar_under_me()
         if covered:
             if self.isVisible():
@@ -446,7 +577,7 @@ class TaskbarPill(QWidget):
             self.show()
         if self.isVisible():
             self.place()
-            winshell.keep_topmost(int(self.winId()))
+            self._raise()
 
     # ── input ───────────────────────────────────────────────────────────────
 
@@ -464,18 +595,32 @@ class TaskbarPill(QWidget):
 
     def mousePressEvent(self, e) -> None:
         if e.button() == Qt.MouseButton.LeftButton:
-            self._press = e.globalPosition().toPoint()
-            self._press_offset = self.settings.taskbar_pill_offset
-            self._press_width = self.width()
-            self._mode = "resize" if self._on_edge(e.position().toPoint()) else "move"
-            self._moved = False
+            self._press_at(e.globalPosition().toPoint(), e.position().toPoint())
 
     def mouseMoveEvent(self, e) -> None:
         if self._press is None:
             self.setCursor(Qt.CursorShape.SizeHorCursor if self._on_edge(e.position().toPoint())
                            else Qt.CursorShape.PointingHandCursor)
             return
-        d = e.globalPosition().toPoint() - self._press
+        self._move_at(e.globalPosition().toPoint())
+
+    def mouseReleaseEvent(self, e) -> None:
+        self._release_at(e.button(), e.globalPosition().toPoint())
+
+    def mouseDoubleClickEvent(self, e) -> None:
+        self._double_at(e.position().toPoint())
+
+    def _press_at(self, gpos: QPoint, local: QPoint) -> None:
+        self._press = gpos
+        self._press_offset = self.settings.taskbar_pill_offset
+        self._press_width = self.width()
+        self._mode = "resize" if self._on_edge(local) else "move"
+        self._moved = False
+
+    def _move_at(self, gpos: QPoint) -> None:
+        if self._press is None:
+            return
+        d = gpos - self._press
         if abs(d.x()) > 3 or abs(d.y()) > 3:
             self._moved = True
         if not self._moved:
@@ -490,18 +635,18 @@ class TaskbarPill(QWidget):
             self.settings.taskbar_pill_offset = max(0, min(1600, self._press_offset + delta))
         self.place()
 
-    def mouseReleaseEvent(self, e) -> None:
-        if e.button() == Qt.MouseButton.LeftButton and self._press is not None:
+    def _release_at(self, button, gpos: QPoint) -> None:
+        if button == Qt.MouseButton.LeftButton and self._press is not None:
             if self._moved:
                 self.offset_changed.emit(self.settings.taskbar_pill_offset)
             else:
                 self.clicked.emit()
-        elif e.button() == Qt.MouseButton.RightButton:
-            self.menu_requested.emit(e.globalPosition().toPoint())
+        elif button == Qt.MouseButton.RightButton:
+            self.menu_requested.emit(gpos)
         self._press = None
 
-    def mouseDoubleClickEvent(self, e) -> None:
-        if self._on_edge(e.position().toPoint()):
+    def _double_at(self, local: QPoint) -> None:
+        if self._on_edge(local):
             self.settings.pill_width = 0      # back to automatic width
             self.place()
             self.offset_changed.emit(self.settings.taskbar_pill_offset)

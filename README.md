@@ -78,6 +78,11 @@ fullscreen window that doesn't have focus), and comes back when the taskbar is v
 never takes focus. Measured cost: about 0 % CPU when idle and about 120 MB RAM for the whole app,
 most of which is the Qt runtime.
 
+**Embed in the taskbar (experimental, off by default):** the countdown becomes part of the Windows
+taskbar instead of a window floating over it. It then hides together with the taskbar (fullscreen,
+auto-hide), menus and flyouts always open above it, and clicking the taskbar can't cover it. If
+Explorer restarts it re-attaches by itself; if the taskbar refuses it, the floating window is used.
+
 ## Data and privacy
 
 * **Jolpica-F1:** schedule (every 6 h), standings and last result (every 3 h), qualifying. Requests are paced, retried 1, 2, 4 … 15 min after a failure, and the last good data is kept.

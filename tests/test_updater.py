@@ -97,3 +97,20 @@ def test_release_with_mismatched_file_versions_is_not_auto_installed():
     rel = release(tag="v1.0.2")
     assert up.pick_asset(rel, "installed") is None
     assert up.pick_asset(rel, "portable") is None
+
+
+def test_import_accepts_plain_settings_file(tmp_path):
+    import json
+    from f1win.settings import Settings
+    raw = tmp_path / "settings.json"
+    raw.write_text(json.dumps({**Settings().__dict__, "taskbar_pill_offset": 120, "notify_lead_min": 30,
+                               "widget_geometry": [1, 2, 3, 4]}))
+    s = Settings()
+    changed = s.import_from(raw)
+    assert s.taskbar_pill_offset == 120 and s.notify_lead_min == 30
+    assert "widget_geometry" not in changed and s.widget_geometry == []
+    junk = tmp_path / "junk.json"
+    junk.write_text('{"hello": 1}')
+    import pytest
+    with pytest.raises(ValueError):
+        Settings().import_from(junk)

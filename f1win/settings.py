@@ -24,6 +24,7 @@ class Settings:
     widget_enabled: bool = False
     taskbar_pill: bool = True              # countdown pill next to the tray icons
     taskbar_pill_offset: int = 0           # px further left of the tray (user drag)
+    pill_embed: bool = False               # live inside the taskbar window (experimental)
     pill_style: str = "noctalia"           # noctalia | taskbar | custom
     pill_radius: int = 7                   # 0 = square box
     pill_width: int = 0                    # 0 = automatic
@@ -183,6 +184,11 @@ class Settings:
         except (OSError, ValueError) as e:
             raise ValueError(f"Not a readable settings file ({e.__class__.__name__}).") from e
         data = payload.get("settings") if isinstance(payload, dict) and payload.get("app") in ("F1DockTimers", "NoctaliaF1") else None
+        if data is None and isinstance(payload, dict):
+            # A plain settings.json copied from another PC or folder also works.
+            known = {fd.name for fd in fields(self)}
+            if len(known & payload.keys()) >= 5:
+                data = payload
         if not isinstance(data, dict):
             raise ValueError("This file is not an F1DockTimers settings export.")
         data = {k: v for k, v in data.items() if k not in self.MACHINE_SPECIFIC}

@@ -39,7 +39,10 @@ log = logging.getLogger("f1win")
 
 
 def server_name() -> str:
-    user = hashlib.sha1(getpass.getuser().encode("utf-8", "replace")).hexdigest()[:10]
+    key = getpass.getuser()
+    if os.environ.get("NOCTALIA_F1_HOME"):          # a separate test home runs side by side
+        key += "|" + os.environ["NOCTALIA_F1_HOME"]
+    user = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:10]
     return f"F1DockTimers-{user}"
 
 
@@ -316,7 +319,7 @@ class F1App:
         self.popup.panel.tick(now) if self.popup.isVisible() else None
         if self.widget is not None and self.widget.isVisible():
             self.widget.panel.tick(now)
-        if self.pill is not None and self.pill.isVisible():
+        if self.pill is not None and self.pill.is_shown():
             self.pill.tick(now)
         if now % 5 == 0:
             self._update_tray(now)
@@ -488,7 +491,7 @@ class F1App:
         self.poller.settings_changed()
         if self.pill is not None:
             self.pill.ctx.theme = self.theme
-        if s.taskbar_pill != bool(self.pill and self.pill.isVisible()):
+        if s.taskbar_pill != bool(self.pill and self.pill.is_shown()):
             self.show_pill(s.taskbar_pill)
         elif self.pill is not None:
             self.pill.restyle()

@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import sys
 import tempfile
 import time
@@ -157,11 +158,13 @@ class Updater(QObject):
     progress = Signal(int, int)       # bytes, total
     failed = Signal(str)
     ready_to_quit = Signal()          # the new version is starting; this one should exit
+    _verified = Signal(str)           # worker thread -> UI thread: "" = ok, else the reason
 
     def __init__(self, settings, parent=None) -> None:
         super().__init__(parent)
         self.settings = settings
         self.nam = QNetworkAccessManager(self)
+        self._verified.connect(self._after_verify)
         self.latest: dict | None = None
         self._reply: QNetworkReply | None = None
         self._timer = QTimer(self)
@@ -268,14 +271,25 @@ class Updater(QObject):
         if not any(host == h or host.endswith("." + h) for h in DOWNLOAD_HOSTS):
             self._discard("The download came from an unexpected server; not installing.")
             return
-        if sha256_file(self._target) != self._asset["sha256"]:
-            self._discard("The download doesn't match GitHub's published checksum; not installing.")
-            return
-        ok, why = signature_ok(authenticode(Path(sys.executable)), authenticode(self._target))
-        if not ok:
-            self._discard(f"Not installing: {why}.")
-            return
-        self._launch()
+        # Hashing ~45 MB and asking PowerShell about signatures takes a few seconds: do it on a
+        # worker thread so the UI (and, in embedded mode, Explorer's taskbar) never waits for it.
+        threading.Thread(target=self._verify, args=(self._target, self._asset["sha256"]), daemon=True).start()
+
+    def _verify(self, target: Path, sha: str) -> None:
+        try:
+            if sha256_file(target) != sha:
+                self._verified.emit("The download doesn't match GitHub's published checksum; not installing.")
+                return
+            ok, why = signature_ok(authenticode(Path(sys.executable)), authenticode(target))
+            self._verified.emit("" if ok else f"Not installing: {why}.")
+        except Exception as e:      # noqa: BLE001 - reported to the user, never silently installed
+            self._verified.emit(f"Couldn't verify the download ({e.__class__.__name__}).")
+
+    def _after_verify(self, problem: str) -> None:
+        if problem:
+            self._discard(problem)
+        else:
+            self._launch()
 
     def _write_chunk_rest(self, reply) -> None:
         rest = bytes(reply.readAll())

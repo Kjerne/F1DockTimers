@@ -186,6 +186,17 @@ class ForegroundWatch:
         self._hook = None
 
 
+def menu_is_open() -> bool:
+    """A classic Win32 popup menu (class #32768, e.g. another app's tray menu) is on screen."""
+    if not IS_WIN:
+        return False
+    try:
+        h = user32.FindWindowW("#32768", None)
+        return bool(h and user32.IsWindowVisible(h))
+    except Exception:
+        return False
+
+
 def keep_topmost(hwnd: int) -> None:
     """Re-assert topmost: clicking the taskbar lifts it above other topmost windows."""
     if not IS_WIN or not hwnd:

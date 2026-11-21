@@ -455,6 +455,12 @@ class SettingsDialog(QDialog):
         upd = self._update_preview
         self.pill_on = self._check("Show the taskbar countdown beside the tray icons", s.taskbar_pill)
         f.addRow(self.pill_on)
+        self.pill_embed = self._check(
+            "Embed in the taskbar (experimental)", s.pill_embed,
+            "Puts the countdown inside the Windows taskbar instead of floating over it. It then hides "
+            "with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes "
+            "trouble, turn it off.")
+        f.addRow(self.pill_embed)
         self.preview = PillPreview()
         f.addRow(self.preview)
         f.addRow(self._hint("On the taskbar: drag to move · drag the left edge to resize · double-click it to reset."))
@@ -564,7 +570,8 @@ class SettingsDialog(QDialog):
     def _pill_values(self) -> dict:
         hmode = self.p_hmode.currentData()
         return dict(
-            taskbar_pill=self.pill_on.isChecked(), pill_style=self.p_style.currentData(),
+            taskbar_pill=self.pill_on.isChecked(), pill_embed=self.pill_embed.isChecked(),
+            pill_style=self.p_style.currentData(),
             pill_bg=self.p_bg.property("color"), pill_bg_opacity=self.p_bg_op.value(),
             pill_text=self.p_text.property("color"), pill_text2=self.p_text2.property("color"),
             pill_live_color=self.p_live.property("color"), pill_border=self.p_border.isChecked(),
