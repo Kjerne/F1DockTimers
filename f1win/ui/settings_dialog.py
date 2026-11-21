@@ -1,8 +1,10 @@
 """Settings window. Short hints on the page, the details in hover tooltips (TIPS)."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+import time
+
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QFileDialog,
                                QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
@@ -17,6 +19,8 @@ from ..services import credentials
 from ..services.poller import round_key
 from ..version import APP_TITLE, VERSION
 from .taskbar_pill import PRESETS, TOKENS, PillPreview, PillStyle, pill_state
+from .. import i18n
+from ..i18n import T
 
 
 def zone_names() -> list[str]:
@@ -83,72 +87,69 @@ def stylesheet(t) -> str:
 
 TIPS = {
     # General
-    "start_win": "Launch F1DockTimers automatically when you sign in to Windows.",
-    "auto_update": "Ask GitHub once a day whether a newer F1DockTimers exists. Sends no personal data.",
-    "start_min": "On: start quietly in the tray. Off: open the panel at launch.",
-    "widget_on": "A movable F1 panel that stays on your desktop.",
-    "default_tab": "Tab the panel opens on. Live and Grid take over automatically during a session / after qualifying.",
-    "time_fmt": "How session times are written: 14:00 or 02:00 PM.",
-    "tz": "Zone for all session times. Automatic follows Windows. Click, then type to jump (e.g. \"Europe/Co\").",
-    "sched_h": "How often the race calendar is checked for changes.",
-    "stand_h": "How often driver/team standings and the last result are refreshed.",
+    "start_win": T('Launch F1DockTimers automatically when you sign in to Windows.'),
+    "auto_update": T('Ask GitHub once a day whether a newer F1DockTimers exists. Sends no personal data.'),
+    "start_min": T('On: start quietly in the tray. Off: open the panel at launch.'),
+    "widget_on": T('A movable F1 panel that stays on your desktop.'),
+    "default_tab": T('Tab the panel opens on. Live and Grid take over automatically during a session / after qualifying.'),
+    "time_fmt": T('How session times are written: 14:00 or 02:00 PM.'),
+    "tz": T('Zone for all session times. Automatic follows Windows. Click, then type to jump (e.g. "Europe/Co").'),
+    "sched_h": T('How often the race calendar is checked for changes.'),
+    "stand_h": T('How often driver/team standings and the last result are refreshed.'),
     # Appearance
-    "accent_btn": "Highlight colour: selected tab, countdown, favourites.",
-    "font_fam": "Noto Sans is the original look; Monospace uses Cascadia Mono / Consolas.",
-    "font_scale": "Text size in the panel and widget.",
-    "ui_scale": "Size of the whole panel and widget, on top of Windows display scaling.",
-    "pop_op": "How see-through the tray panel background is.",
-    "wid_op": "How see-through the desktop widget background is (text stays solid).",
-    "anim": "Circuit fade-in, start lights sequence and popup slide.",
-    "on_top": "Keep the desktop widget above other windows.",
-    "click_through": "Mouse clicks go through the widget. Turn this off again from the tray icon menu.",
-    "locked": "Stop the widget from being moved or resized by accident.",
-    "remember": "Restore the widget where you left it after a restart.",
-    "dbl": "What a double-click on the desktop widget does.",
+    "accent_btn": T('Highlight colour: selected tab, countdown, favourites.'),
+    "font_fam": T('Noto Sans is the original look; Monospace uses Cascadia Mono / Consolas.'),
+    "font_scale": T('Text size in the panel and widget.'),
+    "ui_scale": T('Size of the whole panel and widget, on top of Windows display scaling.'),
+    "pop_op": T('How see-through the tray panel background is.'),
+    "wid_op": T('How see-through the desktop widget background is (text stays solid).'),
+    "anim": T('Circuit fade-in, start lights sequence and popup slide.'),
+    "on_top": T('Keep the desktop widget above other windows.'),
+    "click_through": T('Mouse clicks go through the widget. Turn this off again from the tray icon menu.'),
+    "locked": T('Stop the widget from being moved or resized by accident.'),
+    "remember": T('Restore the widget where you left it after a restart.'),
+    "dbl": T('What a double-click on the desktop widget does.'),
     # Taskbar
-    "pill_on": "Small countdown next to the tray icons. Hides itself over fullscreen games.",
-    "p_style": "Noctalia: dark box with accent text. Match taskbar: transparent with Windows colours. Custom: your colours.",
-    "p_bg": "Background colour (Custom style).",
-    "p_bg_op": "Background see-through amount (Custom style). 0 % = only text.",
-    "p_text": "Colour of the first line (Custom style).",
-    "p_text2": "Colour of the second line (Custom style).",
-    "p_live": "Colour used while a session is live (Custom style).",
-    "p_border": "Thin outline around the countdown box.",
-    "p_border_c": "Outline colour (Custom style).",
-    "p_radius": "Rounded corners. 0 = square box.",
-    "p_width": "Fixed width, or Automatic to fit the text. You can also drag the box's left edge on the taskbar.",
-    "p_hmode": "Automatic leaves a small gap, Full fills the taskbar height, Custom uses the pixel value.",
-    "p_height": "Box height in pixels (Custom height).",
-    "p_offset": "Distance from the tray icons. You can also drag the box along the taskbar.",
-    "p_font": "Largest text size. With auto-fit the text shrinks when it would not fit.",
-    "p_autofit": "Shrink the text so it always fits inside the box.",
-    "p_bold": "Write the first line in bold.",
-    "p_align": "Text alignment inside the box.",
-    "p_lines": "One compact line or two lines.",
-    "p_preset": "Ready-made layouts. Fills the four line fields below.",
-    "p_top": "What the first line shows. Use the {tokens} listed below.",
-    "p_bottom": "What the second line shows.",
-    "p_ltop": "First line while a session is live.",
-    "p_lbottom": "Second line while a session is live.",
+    "pill_on": T('Small countdown next to the tray icons. Hides itself over fullscreen games.'),
+    "p_style": T('Noctalia: dark box with accent text. Match taskbar: transparent with Windows colours. Custom: your colours.'),
+    "p_bg": T('Background colour (Custom style).'),
+    "p_bg_op": T('Background see-through amount (Custom style). 0 % = only text.'),
+    "p_text": T('Colour of the first line (Custom style).'),
+    "p_text2": T('Colour of the second line (Custom style).'),
+    "p_live": T('Colour used while a session is live (Custom style).'),
+    "p_border": T('Thin outline around the countdown box.'),
+    "p_border_c": T('Outline colour (Custom style).'),
+    "p_radius": T('Rounded corners. 0 = square box.'),
+    "p_width": T("Fixed width, or Automatic to fit the text. You can also drag the box's left edge on the taskbar."),
+    "p_hmode": T('Automatic leaves a small gap, Full fills the taskbar height, Custom uses the pixel value.'),
+    "p_height": T('Box height in pixels (Custom height).'),
+    "p_offset": T('Distance from the tray icons. You can also drag the box along the taskbar.'),
+    "p_font": T('Largest text size. With auto-fit the text shrinks when it would not fit.'),
+    "p_autofit": T('Shrink the text so it always fits inside the box.'),
+    "p_bold": T('Write the first line in bold.'),
+    "p_align": T('Text alignment inside the box.'),
+    "p_lines": T('One compact line or two lines.'),
+    "p_preset": T('Ready-made layouts. Fills the four line fields below.'),
+    "p_top": T('What the first line shows. Use the {tokens} listed below.'),
+    "p_bottom": T('What the second line shows.'),
+    "p_ltop": T('First line while a session is live.'),
+    "p_lbottom": T('Second line while a session is live.'),
     # Formula 1
-    "cd_target": "Next race: big countdown always to the Grand Prix (LIGHTS OUT in 4d 9h).\n"
-                 "Next session: counts to whatever is next (NEXT · PRACTICE 1 in 2d 6h), LIGHTS OUT for the race.\n"
-                 "Also used by the tray tooltip. The taskbar countdown always shows the next session.",
-    "fav_driver": "Shown in the accent colour in every table.",
-    "fav_team": "Team shown in the accent colour in every table.",
-    "team_colors": "Coloured bar beside each driver and team.",
-    "n_race": "Windows notification before the race starts.",
-    "n_quali": "Windows notification before qualifying starts.",
-    "n_sprint": "Windows notification before the sprint starts.",
-    "lead": "How many minutes before the session the notification appears.",
+    "cd_target": T('Next race: big countdown always to the Grand Prix (LIGHTS OUT in 4d 9h).\nNext session: counts to whatever is next (NEXT · PRACTICE 1 in 2d 6h), LIGHTS OUT for the race.\nAlso used by the tray tooltip. The taskbar countdown always shows the next session.'),
+    "fav_driver": T('Shown in the accent colour in every table.'),
+    "fav_team": T('Team shown in the accent colour in every table.'),
+    "team_colors": T('Coloured bar beside each driver and team.'),
+    "n_race": T('Windows notification before the race starts.'),
+    "n_quali": T('Windows notification before qualifying starts.'),
+    "n_sprint": T('Windows notification before the sprint starts.'),
+    "lead": T('How many minutes before the session the notification appears.'),
+    "n_results": T('After qualifying, the sprint and the race: a notification with the top 3.\nNot shown while spoiler-free mode hides the results.'),
+    "spoiler": T('Hides results, grid, live timing and standings once a qualifying, sprint or race has started, until you press Show results. For when you watch later.'),
     # Live data
-    "live_mode": "OpenF1 Free: no account; full results ~20–30 min after each session.\n"
-                 "Free + F1 live stream: live order and gaps during sessions from F1's own (unofficial) stream, "
-                 "full results from OpenF1 afterwards. May stop working at any time.\n"
-                 "OpenF1 Sponsor: official live data during sessions; needs a paid OpenF1 account.",
-    "user": "Your OpenF1 account e-mail (Sponsor plan only).",
-    "pw": "Stored in Windows Credential Manager, never in files or logs.",
-    "debug": "Show Grid and Live outside race weekends using the last session's data. For testing.",
+    "live_mode": T("OpenF1 Free: no account; full results ~20–30 min after each session.\nFree + F1 live stream: live order and gaps during sessions from F1's own (unofficial) stream, full results from OpenF1 afterwards. May stop working at any time.\nOpenF1 Sponsor: official live data during sessions; needs a paid OpenF1 account."),
+    "user": T('Your OpenF1 account e-mail (Sponsor plan only).'),
+    "pw": T('Stored in Windows Credential Manager, never in files or logs.'),
+    "debug": T("Show Grid and Live outside race weekends using the last session's data. For testing."),
 }
 
 
@@ -164,17 +165,17 @@ class SettingsDialog(QDialog):
         self.s = settings
         self.store = store
         self.t = theme
-        self.setWindowTitle(f"{APP_TITLE} · Settings")
+        self.setWindowTitle(T('{app_title} · Settings', app_title=APP_TITLE))
         self.setStyleSheet(stylesheet(theme))
         self.resize(560, 620)
         root = QVBoxLayout(self)
         tabs = QTabWidget()
-        tabs.addTab(self._page(self._general()), "General")
-        tabs.addTab(self._page(self._appearance()), "Appearance")
-        tabs.addTab(self._page(self._taskbar()), "Taskbar")
-        tabs.addTab(self._page(self._formula1()), "Formula 1")
-        tabs.addTab(self._page(self._live()), "Live data")
-        tabs.addTab(self._page(self._about()), "About")
+        tabs.addTab(self._page(self._general()), T('General'))
+        tabs.addTab(self._page(self._appearance()), T('Appearance'))
+        tabs.addTab(self._page(self._taskbar()), T('Taskbar'))
+        tabs.addTab(self._page(self._formula1()), T('Formula 1'))
+        tabs.addTab(self._page(self._live()), T('Live data'))
+        tabs.addTab(self._page(self._about()), T('About'))
         root.addWidget(tabs)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         bb.button(QDialogButtonBox.StandardButton.Save).setDefault(True)
@@ -182,6 +183,16 @@ class SettingsDialog(QDialog):
         bb.rejected.connect(self.reject)
         root.addWidget(bb)
         self._apply_tips()
+
+    def _open_lang_folder(self) -> None:
+        """Create the user language folder with a fresh copy of the template, then open it."""
+        import shutil
+        folder = i18n.user_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        template = i18n.builtin_dir() / "_template.txt"
+        if template.exists():
+            shutil.copyfile(template, folder / "_template.txt")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def _apply_tips(self) -> None:
         """Hover help on the field and on its label."""
@@ -249,26 +260,40 @@ class SettingsDialog(QDialog):
         s = self.s
         w = QWidget()
         f = QFormLayout(w)
-        self.start_win = self._check("Start with Windows", s.start_with_windows)
-        self.start_min = self._check("Start minimized to the tray (no popup at launch)", s.start_minimized)
-        self.widget_on = self._check("Show the desktop widget", s.widget_enabled)
+        self.start_win = self._check(T('Start with Windows'), s.start_with_windows)
+        self.start_min = self._check(T('Start minimized to the tray (no popup at launch)'), s.start_minimized)
+        self.widget_on = self._check(T('Show the desktop widget'), s.widget_enabled)
         f.addRow(self.start_win)
         f.addRow(self.start_min)
         f.addRow(self.widget_on)
-        self.default_tab = self._combo([("schedule", "Schedule"), ("drivers", "Drivers"),
-                                        ("constructors", "Teams")], s.default_tab)
-        f.addRow("Default tab", self.default_tab)
-        self.time_fmt = self._combo([("24h", "24-hour"), ("12h", "12-hour")], s.time_format)
-        f.addRow("Time format", self.time_fmt)
+        self.default_tab = self._combo([("schedule", T('Schedule')), ("drivers", T('Drivers')),
+                                        ("constructors", T('Teams'))], s.default_tab)
+        f.addRow(T('Default tab'), self.default_tab)
+        self.time_fmt = self._combo([("24h", T('24-hour')), ("12h", T('12-hour'))], s.time_format)
+        f.addRow(T('Time format'), self.time_fmt)
         self.tz = QComboBox()
         self.tz.setMaxVisibleItems(16)
-        self.tz.setToolTip("Click, then type to jump, e.g. \"Europe/Co\"")
-        self.tz.addItem(f"Automatic (Windows: {system_zone_name()})", "auto")
+        self.tz.setToolTip(T('Click, then type to jump, e.g. "Europe/Co"'))
+        self.tz.addItem(T('Automatic (Windows: {system_zone_name})', system_zone_name=system_zone_name()), "auto")
         for z in zone_names():
             self.tz.addItem(z, z)
         i = self.tz.findData(s.timezone)
         self.tz.setCurrentIndex(max(0, i))
-        f.addRow("Time zone", self.tz)
+        f.addRow(T('Time zone'), self.tz)
+        self.lang = QComboBox()
+        self.lang.addItem(T('Automatic (Windows language)'), "auto")
+        for code, name, _file in i18n.available():
+            self.lang.addItem(name, code)
+        i = self.lang.findData(s.language)
+        self.lang.setCurrentIndex(max(0, i))
+        lang_folder = QPushButton(T('Open language folder'))
+        lang_folder.setToolTip(T('Add your own translation here: copy _template.txt, translate it and restart.'))
+        lang_folder.clicked.connect(self._open_lang_folder)
+        row = QHBoxLayout()
+        row.addWidget(self.lang, 1)
+        row.addWidget(lang_folder)
+        f.addRow(T('Language'), row)
+        f.addRow(self._hint(T('A new language takes effect after restarting F1DockTimers.')))
         self.sched_h = QDoubleSpinBox()
         self.sched_h.setRange(0.5, 48)
         self.sched_h.setSuffix(" h")
@@ -277,31 +302,31 @@ class SettingsDialog(QDialog):
         self.stand_h.setRange(0.5, 48)
         self.stand_h.setSuffix(" h")
         self.stand_h.setValue(s.standings_refresh_h)
-        f.addRow("Schedule refresh", self.sched_h)
-        f.addRow("Standings refresh", self.stand_h)
+        f.addRow(T('Schedule refresh'), self.sched_h)
+        f.addRow(T('Standings refresh'), self.stand_h)
         row = QHBoxLayout()
-        b1 = QPushButton("Refresh data now")
+        b1 = QPushButton(T('Refresh data now'))
         b1.clicked.connect(self.refresh_requested)
-        b2 = QPushButton("Clear cache")
+        b2 = QPushButton(T('Clear cache'))
         b2.clicked.connect(self._clear_cache)
         row.addWidget(b1)
         row.addWidget(b2)
         row.addStretch(1)
         f.addRow(row)
-        self.auto_update = self._check("Check for updates automatically (once a day)", s.check_updates)
+        self.auto_update = self._check(T('Check for updates automatically (once a day)'), s.check_updates)
         f.addRow(self.auto_update)
         row = QHBoxLayout()
-        b5 = QPushButton(f"Check for updates (you have {VERSION})")
+        b5 = QPushButton(T('Check for updates (you have {version})', version=VERSION))
         b5.clicked.connect(self.check_updates_requested)
         row.addWidget(b5)
         row.addStretch(1)
         f.addRow(row)
         row = QHBoxLayout()
-        b3 = QPushButton("Export settings…")
-        b3.setToolTip("Save all settings to a .json file (no passwords)")
+        b3 = QPushButton(T('Export settings…'))
+        b3.setToolTip(T('Save all settings to a .json file (no passwords)'))
         b3.clicked.connect(self._export)
-        b4 = QPushButton("Import settings…")
-        b4.setToolTip("Load settings from an exported .json file")
+        b4 = QPushButton(T('Import settings…'))
+        b4.setToolTip(T('Load settings from an exported .json file'))
         b4.clicked.connect(self._import)
         row.addWidget(b3)
         row.addWidget(b4)
@@ -316,61 +341,61 @@ class SettingsDialog(QDialog):
         self.accent = s.accent
         self.accent_btn = QPushButton(s.accent)
         self.accent_btn.clicked.connect(self._pick_accent)
-        reset = QPushButton("Original")
+        reset = QPushButton(T('Original'))
         reset.clicked.connect(lambda: self._set_accent("#BCC2FF"))
         row = QHBoxLayout()
         row.addWidget(self.accent_btn)
         row.addWidget(reset)
         row.addStretch(1)
-        f.addRow("Accent colour", row)
+        f.addRow(T('Accent colour'), row)
         self._set_accent(s.accent)
-        self.font_fam = self._combo([("Noto Sans", "Noto Sans (original)"), ("monospace", "Monospace")], s.font_family)
-        f.addRow("Typeface", self.font_fam)
+        self.font_fam = self._combo([("Noto Sans", T('Noto Sans (original)')), ("monospace", T('Monospace'))], s.font_family)
+        f.addRow(T('Typeface'), self.font_fam)
         self.font_scale = QSpinBox()
         self.font_scale.setRange(70, 160)
         self.font_scale.setSuffix(" %")
         self.font_scale.setValue(s.font_scale)
-        f.addRow("Font size", self.font_scale)
+        f.addRow(T('Font size'), self.font_scale)
         self.ui_scale = QSpinBox()
         self.ui_scale.setRange(70, 200)
         self.ui_scale.setSuffix(" %")
         self.ui_scale.setValue(s.ui_scale)
-        f.addRow("Interface scale", self.ui_scale)
+        f.addRow(T('Interface scale'), self.ui_scale)
         self.pop_op = QSpinBox()
         self.pop_op.setRange(40, 100)
         self.pop_op.setSuffix(" %")
         self.pop_op.setValue(s.popup_opacity)
-        f.addRow("Popup opacity", self.pop_op)
+        f.addRow(T('Popup opacity'), self.pop_op)
         self.wid_op = QSpinBox()
         self.wid_op.setRange(0, 100)
         self.wid_op.setSuffix(" %")
         self.wid_op.setValue(s.widget_opacity)
-        f.addRow("Widget background opacity", self.wid_op)
-        self.anim = self._check("Animations (circuit fade-in, start lights, popup slide)", s.animations)
+        f.addRow(T('Widget background opacity'), self.wid_op)
+        self.anim = self._check(T('Animations (circuit fade-in, start lights, popup slide)'), s.animations)
         f.addRow(self.anim)
-        f.addRow(QLabel("Desktop widget"))
-        self.on_top = self._check("Always on top", s.widget_always_on_top)
-        self.click_through = self._check("Click-through (mouse passes through; turn off from the tray menu)",
+        f.addRow(QLabel(T('Desktop widget')))
+        self.on_top = self._check(T('Always on top'), s.widget_always_on_top)
+        self.click_through = self._check(T('Click-through (mouse passes through; turn off from the tray menu)'),
                                          s.widget_click_through)
-        self.locked = self._check("Lock position and size (pin)", s.widget_locked)
-        self.remember = self._check("Remember position and size", s.widget_remember_position)
+        self.locked = self._check(T('Lock position and size (pin)'), s.widget_locked)
+        self.remember = self._check(T('Remember position and size'), s.widget_remember_position)
         for c in (self.on_top, self.click_through, self.locked, self.remember):
             f.addRow(c)
-        self.dbl = self._combo([("refresh", "Refresh data"), ("panel", "Open the tray panel"),
-                                ("settings", "Open settings"), ("none", "Nothing")], s.widget_double_click)
-        f.addRow("Double-click on widget", self.dbl)
+        self.dbl = self._combo([("refresh", T('Refresh data')), ("panel", T('Open the tray panel')),
+                                ("settings", T('Open settings')), ("none", T('Nothing'))], s.widget_double_click)
+        f.addRow(T('Double-click on widget'), self.dbl)
         return w
 
     def _formula1(self) -> QWidget:
         s = self.s
         w = QWidget()
         f = QFormLayout(w)
-        self.cd_target = self._combo([("race", "Next race"), ("session", "Next session")], s.countdown_target)
-        f.addRow("Countdown target", self.cd_target)
-        f.addRow(self._hint("Race = always to the Grand Prix. Session = to FP1, FP2, Quali … in turn. Hover for more."))
+        self.cd_target = self._combo([("race", T('Next race')), ("session", T('Next session'))], s.countdown_target)
+        f.addRow(T('Countdown target'), self.cd_target)
+        f.addRow(self._hint(T('Race = always to the Grand Prix. Session = to FP1, FP2, Quali … in turn. Hover for more.')))
         self.fav_driver = QComboBox()
         self.fav_driver.setMaxVisibleItems(16)
-        self.fav_driver.addItem("(none)", "")
+        self.fav_driver.addItem(T('(none)'), "")
         drivers = self.store.get("drivers").get("rows") or []
         for r in drivers:
             code = r.get("code", "")
@@ -381,12 +406,12 @@ class SettingsDialog(QDialog):
             self.fav_driver.addItem(s.favorite_driver, s.favorite_driver)
             i = self.fav_driver.count() - 1
         self.fav_driver.setCurrentIndex(max(0, i))
-        f.addRow("Favourite driver", self.fav_driver)
+        f.addRow(T('Favourite driver'), self.fav_driver)
         if not drivers:
-            f.addRow(self._hint("The driver list fills in once the standings have loaded."))
+            f.addRow(self._hint(T('The driver list fills in once the standings have loaded.')))
         self.fav_team = QComboBox()
         self.fav_team.setMaxVisibleItems(16)
-        self.fav_team.addItem("(none)", "")
+        self.fav_team.addItem(T('(none)'), "")
         rows = self.store.get("constructors").get("rows") or []
         for r in rows:
             self.fav_team.addItem(r.get("name", ""), r.get("team_id", ""))
@@ -395,34 +420,37 @@ class SettingsDialog(QDialog):
             self.fav_team.addItem(s.favorite_team, s.favorite_team)
             i = self.fav_team.count() - 1
         self.fav_team.setCurrentIndex(max(0, i))
-        f.addRow("Favourite team", self.fav_team)
-        self.team_colors = self._check("Team colour chips", s.team_colors)
+        f.addRow(T('Favourite team'), self.fav_team)
+        self.team_colors = self._check(T('Team colour chips'), s.team_colors)
         f.addRow(self.team_colors)
+        self.spoiler = self._check(T("Spoiler-free mode (hide results until I've watched)"), s.spoiler_free)
+        f.addRow(self.spoiler)
 
-        f.addRow(QLabel("Notifications"))
-        self.n_race = self._check("Before the race", s.notify_race)
-        self.n_quali = self._check("Before qualifying", s.notify_quali)
-        self.n_sprint = self._check("Before the sprint", s.notify_sprint)
-        for c in (self.n_race, self.n_quali, self.n_sprint):
+        f.addRow(QLabel(T('Notifications')))
+        self.n_race = self._check(T('Before the race'), s.notify_race)
+        self.n_quali = self._check(T('Before qualifying'), s.notify_quali)
+        self.n_sprint = self._check(T('Before the sprint'), s.notify_sprint)
+        self.n_results = self._check(T('Results (top 3) after qualifying, sprint and race'), s.notify_results)
+        for c in (self.n_race, self.n_quali, self.n_sprint, self.n_results):
             f.addRow(c)
         self.lead = QSpinBox()
         self.lead.setRange(0, 120)
-        self.lead.setSuffix(" min")
+        self.lead.setSuffix(T(' min'))
         self.lead.setValue(s.notify_lead_min)
-        f.addRow("Lead time", self.lead)
+        f.addRow(T('Lead time'), self.lead)
 
-        f.addRow(QLabel("Session-time corrections"))
-        f.addRow(self._hint("Only needed if a delay isn't picked up automatically. Resets next round."))
+        f.addRow(QLabel(T('Session-time corrections')))
+        f.addRow(self._hint(T("Only needed if a delay isn't picked up automatically. Resets next round.")))
         self.offsets: dict[str, QSpinBox] = {}
         race = self.store.race
         offs = s.session_offsets if race and s.session_offsets.get("round_key") == round_key(race) else {}
         if race is None:
-            f.addRow(self._hint("No upcoming race loaded."))
+            f.addRow(self._hint(T('No upcoming race loaded.')))
         else:
             for sess in race.raw_sessions:
                 sp = QSpinBox()
                 sp.setRange(-720, 720)
-                sp.setSuffix(" min")
+                sp.setSuffix(T(' min'))
                 sp.setValue(int(offs.get(sess.id, 0) or 0))
                 self.offsets[sess.id] = sp
                 f.addRow(SESSION_NAMES.get(sess.id, sess.id), sp)
@@ -438,7 +466,7 @@ class SettingsDialog(QDialog):
             b.setStyleSheet(f"background:{b.property('color')}; color:{fg}; border:1px solid {self.t.outline};")
 
         def pick():
-            c = QColorDialog.getColor(QColor(b.property("color")), self, "Colour")
+            c = QColorDialog.getColor(QColor(b.property("color")), self, T('Colour'))
             if c.isValid():
                 show(c.name())
                 if on_change:
@@ -453,22 +481,24 @@ class SettingsDialog(QDialog):
         w = QWidget()
         f = QFormLayout(w)
         upd = self._update_preview
-        self.pill_on = self._check("Show the taskbar countdown beside the tray icons", s.taskbar_pill)
+        self.pill_on = self._check(T('Show the taskbar countdown beside the tray icons'), s.taskbar_pill)
         f.addRow(self.pill_on)
         self.pill_embed = self._check(
-            "Embed in the taskbar (experimental)", s.pill_embed,
-            "Puts the countdown inside the Windows taskbar instead of floating over it. It then hides "
-            "with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes "
-            "trouble, turn it off.")
+            T('Embed in the taskbar (experimental)'), s.pill_embed,
+            T('Puts the countdown inside the Windows taskbar instead of floating over it. It then hides with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes trouble, turn it off.'))
         f.addRow(self.pill_embed)
+        self.pill_dock = self._check(
+            T('Place next to other taskbar widgets'), s.pill_auto_dock,
+            T("Sits beside other apps' widgets in the taskbar (e.g. a battery monitor) instead of on top of them. Position then adds extra space from there."))
+        f.addRow(self.pill_dock)
         self.preview = PillPreview()
         f.addRow(self.preview)
-        f.addRow(self._hint("On the taskbar: drag to move · drag the left edge to resize · double-click it to reset."))
+        f.addRow(self._hint(T('On the taskbar: drag to move · drag the left edge to resize · double-click it to reset.')))
 
-        self.p_style = self._combo([("noctalia", "Noctalia (dark panel, accent text)"),
-                                    ("taskbar", "Match my Windows taskbar (transparent, system colours)"),
-                                    ("custom", "Custom colours")], s.pill_style)
-        f.addRow("Style", self.p_style)
+        self.p_style = self._combo([("noctalia", T('Noctalia (dark panel, accent text)')),
+                                    ("taskbar", T('Match my Windows taskbar (transparent, system colours)')),
+                                    ("custom", T('Custom colours'))], s.pill_style)
+        f.addRow(T('Style'), self.p_style)
         self.p_bg = self._color_btn(s.pill_bg, upd)
         self.p_bg_op = QSpinBox()
         self.p_bg_op.setRange(0, 100)
@@ -477,72 +507,73 @@ class SettingsDialog(QDialog):
         self.p_text = self._color_btn(s.pill_text, upd)
         self.p_text2 = self._color_btn(s.pill_text2, upd)
         self.p_live = self._color_btn(s.pill_live_color, upd)
-        self.p_border = self._check("Border", s.pill_border)
+        self.p_border = self._check(T('Border'), s.pill_border)
         self.p_border_c = self._color_btn(s.pill_border_color, upd)
-        self.custom_rows = [("Background", self.p_bg), ("Background opacity", self.p_bg_op),
-                            ("First line colour", self.p_text), ("Second line colour", self.p_text2),
-                            ("Live highlight", self.p_live), ("Border colour", self.p_border_c)]
+        self.custom_rows = [(T('Background'), self.p_bg), (T('Background opacity'), self.p_bg_op),
+                            (T('First line colour'), self.p_text), (T('Second line colour'), self.p_text2),
+                            (T('Live highlight'), self.p_live), (T('Border colour'), self.p_border_c)]
         for label, wdg in self.custom_rows:
             f.addRow(label, wdg)
         f.addRow(self.p_border)
 
         self.p_radius = QSpinBox()
         self.p_radius.setRange(0, 30)
-        self.p_radius.setSuffix(" px")
-        self.p_radius.setSpecialValueText("0 (square box)")
+        self.p_radius.setSuffix(T(' px'))
+        self.p_radius.setSpecialValueText(T('0 (square box)'))
         self.p_radius.setValue(s.pill_radius)
-        f.addRow("Corner radius", self.p_radius)
+        f.addRow(T('Corner radius'), self.p_radius)
         self.p_width = QSpinBox()
         self.p_width.setRange(0, 900)
-        self.p_width.setSuffix(" px")
-        self.p_width.setSpecialValueText("Automatic")
+        self.p_width.setSuffix(T(' px'))
+        self.p_width.setSpecialValueText(T('Automatic'))
         self.p_width.setValue(s.pill_width)
-        f.addRow("Width", self.p_width)
-        self.p_hmode = self._combo([("auto", "Automatic"), ("full", "Full taskbar height"), ("custom", "Custom")],
+        f.addRow(T('Width'), self.p_width)
+        self.p_hmode = self._combo([("auto", T('Automatic')), ("full", T('Full taskbar height')), ("custom", T('Custom'))],
                                    "full" if s.pill_height == -1 else ("custom" if s.pill_height > 0 else "auto"))
         self.p_height = QSpinBox()
         self.p_height.setRange(16, 80)
-        self.p_height.setSuffix(" px")
+        self.p_height.setSuffix(T(' px'))
         self.p_height.setValue(s.pill_height if s.pill_height > 0 else 28)
         row = QHBoxLayout()
         row.addWidget(self.p_hmode)
         row.addWidget(self.p_height)
-        f.addRow("Height", row)
+        f.addRow(T('Height'), row)
         self.p_offset = QSpinBox()
-        self.p_offset.setRange(0, 1600)
-        self.p_offset.setSuffix(" px left of the tray")
+        self.p_offset.setRange(-400, 1600)
+        self.p_offset.setSuffix(T(' px left of the tray'))
+        self.p_offset.setToolTip(T('Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons.'))
         self.p_offset.setValue(s.taskbar_pill_offset)
-        f.addRow("Position", self.p_offset)
+        f.addRow(T('Position'), self.p_offset)
 
         self.p_font = QDoubleSpinBox()
         self.p_font.setRange(7, 28)
         self.p_font.setSingleStep(0.5)
-        self.p_font.setSuffix(" px")
+        self.p_font.setSuffix(T(' px'))
         self.p_font.setValue(s.pill_font_px)
-        f.addRow("Text size (max)", self.p_font)
-        self.p_autofit = self._check("Auto-fit text to the pill size", s.pill_autofit)
-        self.p_bold = self._check("First line bold", s.pill_bold_top)
+        f.addRow(T('Text size (max)'), self.p_font)
+        self.p_autofit = self._check(T('Auto-fit text to the pill size'), s.pill_autofit)
+        self.p_bold = self._check(T('First line bold'), s.pill_bold_top)
         f.addRow(self.p_autofit)
         f.addRow(self.p_bold)
-        self.p_align = self._combo([("left", "Left"), ("center", "Centre")], s.pill_align)
-        f.addRow("Alignment", self.p_align)
-        self.p_lines = self._combo([("2", "Two lines"), ("1", "One line")], str(s.pill_lines))
-        f.addRow("Lines", self.p_lines)
+        self.p_align = self._combo([("left", T('Left')), ("center", T('Centre'))], s.pill_align)
+        f.addRow(T('Alignment'), self.p_align)
+        self.p_lines = self._combo([("2", T('Two lines')), ("1", T('One line'))], str(s.pill_lines))
+        f.addRow(T('Lines'), self.p_lines)
 
         self.p_preset = QComboBox()
-        self.p_preset.addItem("(custom)", None)
+        self.p_preset.addItem(T('(custom)'), None)
         for i, pr in enumerate(PRESETS):
             self.p_preset.addItem(pr[0], i)
-        f.addRow("Layout preset", self.p_preset)
+        f.addRow(T('Layout preset'), self.p_preset)
         self.p_top = QLineEdit(s.pill_top)
         self.p_bottom = QLineEdit(s.pill_bottom)
         self.p_ltop = QLineEdit(s.pill_live_top)
         self.p_lbottom = QLineEdit(s.pill_live_bottom)
-        f.addRow("First line", self.p_top)
-        f.addRow("Second line", self.p_bottom)
-        f.addRow("First line (live)", self.p_ltop)
-        f.addRow("Second line (live)", self.p_lbottom)
-        tokens = self._hint("Tokens: " + " ".join("{" + k + "}" for k in TOKENS) + "  (hover for examples)")
+        f.addRow(T('First line'), self.p_top)
+        f.addRow(T('Second line'), self.p_bottom)
+        f.addRow(T('First line (live)'), self.p_ltop)
+        f.addRow(T('Second line (live)'), self.p_lbottom)
+        tokens = self._hint(T('Tokens: ') + " ".join("{" + k + "}" for k in TOKENS) + T('  (hover for examples)'))
         tokens.setToolTip("\n".join("{" + k + "}  " + v for k, v in TOKENS.items()))
         f.addRow(tokens)
 
@@ -571,6 +602,7 @@ class SettingsDialog(QDialog):
         hmode = self.p_hmode.currentData()
         return dict(
             taskbar_pill=self.pill_on.isChecked(), pill_embed=self.pill_embed.isChecked(),
+            pill_auto_dock=self.pill_dock.isChecked(),
             pill_style=self.p_style.currentData(),
             pill_bg=self.p_bg.property("color"), pill_bg_opacity=self.p_bg_op.value(),
             pill_text=self.p_text.property("color"), pill_text2=self.p_text2.property("color"),
@@ -606,28 +638,28 @@ class SettingsDialog(QDialog):
         mode = "sponsor" if s.openf1_plan == "sponsor" and s.live_source == "openf1" else (
             "combo" if s.live_source == "f1_feed" else "free")
         self.live_mode = self._combo([
-            ("free", "OpenF1 Free · results after each session"),
-            ("combo", "OpenF1 Free + F1 live stream (experimental)"),
-            ("sponsor", "OpenF1 Sponsor · live during sessions (account)")], mode)
-        f.addRow("Live data", self.live_mode)
+            ("free", T('OpenF1 Free · results after each session')),
+            ("combo", T('OpenF1 Free + F1 live stream (experimental)')),
+            ("sponsor", T('OpenF1 Sponsor · live during sessions (account)'))], mode)
+        f.addRow(T('Live data'), self.live_mode)
         self.live_hint = self._hint("")
         f.addRow(self.live_hint)
         self.user = QLineEdit(s.openf1_username)
-        self.user.setPlaceholderText("you@example.com")
-        f.addRow("OpenF1 username", self.user)
+        self.user.setPlaceholderText(T('you@example.com'))
+        f.addRow(T('OpenF1 username'), self.user)
         self.pw = QLineEdit()
         self.pw.setEchoMode(QLineEdit.EchoMode.Password)
         has = bool(s.openf1_username and credentials.get_password(s.openf1_username))
-        self.pw.setPlaceholderText("•••••••• (stored)" if has else "password")
-        f.addRow("OpenF1 password", self.pw)
-        forget = QPushButton("Forget stored password")
-        forget.setToolTip("Remove the password from Windows Credential Manager.")
+        self.pw.setPlaceholderText(T('•••••••• (stored)') if has else T('password'))
+        f.addRow(T('OpenF1 password'), self.pw)
+        forget = QPushButton(T('Forget stored password'))
+        forget.setToolTip(T('Remove the password from Windows Credential Manager.'))
         forget.clicked.connect(self._forget)
         f.addRow(forget)
         hints = {
-            "free": "No account needed. Live tab shows final results ~20–30 min after each session.",
-            "combo": "Live during sessions via F1's unofficial stream, OpenF1 results after. May break anytime.",
-            "sponsor": "Official live timing during sessions. Needs a paid OpenF1 account below.",
+            "free": T('No account needed. Live tab shows final results ~20–30 min after each session.'),
+            "combo": T("Live during sessions via F1's unofficial stream, OpenF1 results after. May break anytime."),
+            "sponsor": T('Official live timing during sessions. Needs a paid OpenF1 account below.'),
         }
 
         def mode_changed(*_a):
@@ -638,7 +670,7 @@ class SettingsDialog(QDialog):
 
         self.live_mode.currentIndexChanged.connect(mode_changed)
         mode_changed()
-        self.debug = self._check("Debug: force Grid and Live tabs", s.debug_force_tabs)
+        self.debug = self._check(T('Debug: force Grid and Live tabs'), s.debug_force_tabs)
         f.addRow(self.debug)
         return w
 
@@ -646,13 +678,7 @@ class SettingsDialog(QDialog):
         w = QWidget()
         v = QVBoxLayout(w)
         lab = QLabel(
-            f"<b>{APP_TITLE}</b> {VERSION}<br>"
-            "F1 schedule, countdowns, live timing and standings for Windows.<br><br>"
-            "Inspired by the <a href='https://noctalia.dev/plugins/community/f1'>Noctalia F1 plugin</a> "
-            "(gcap0n1, MIT).<br>"
-            "Data: Jolpica-F1 · OpenF1. Circuits: bacinger/f1-circuits.<br><br>"
-            "<span style='color:#8F8F9E'>Unofficial · not affiliated with Formula 1. "
-            "Full credits in THIRD_PARTY_NOTICES.md.</span>")
+            T("<b>{app_title}</b> {version}<br>F1 schedule, countdowns, live timing and standings for Windows.<br><br>Inspired by the <a href='https://noctalia.dev/plugins/community/f1'>Noctalia F1 plugin</a> (gcap0n1, MIT).<br>Data: Jolpica-F1 · OpenF1. Circuits: bacinger/f1-circuits.<br><br><span style='color:#8F8F9E'>Unofficial · not affiliated with Formula 1. Full credits in THIRD_PARTY_NOTICES.md.</span>", app_title=APP_TITLE, version=VERSION))
         lab.setWordWrap(True)
         lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setOpenExternalLinks(True)
@@ -669,51 +695,50 @@ class SettingsDialog(QDialog):
         self.accent_btn.setStyleSheet(f"background:{self.accent}; color:{fg}; border:none;")
 
     def _pick_accent(self) -> None:
-        c = QColorDialog.getColor(QColor(self.accent), self, "Accent colour")
+        c = QColorDialog.getColor(QColor(self.accent), self, T('Accent colour'))
         if c.isValid():
             self._set_accent(c.name())
 
     def _forget(self) -> None:
         credentials.delete_password(self.user.text().strip() or self.s.openf1_username)
         self.pw.clear()
-        self.pw.setPlaceholderText("password")
+        self.pw.setPlaceholderText(T('password'))
 
     def _export(self) -> None:
         import os
         start = os.path.join(os.path.expanduser("~"), "Documents", "F1DockTimers-settings.json")
-        path, _ = QFileDialog.getSaveFileName(self, "Export settings", start, "Settings (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, T('Export settings'), start, "Settings (*.json)")
         if not path:
             return
         try:
             self.s.export_to(path)
         except OSError as e:
-            QMessageBox.warning(self, "Export settings", f"Could not write the file:\n{e}")
+            QMessageBox.warning(self, T('Export settings'), T('Could not write the file:\n{e}', e=e))
             return
-        QMessageBox.information(self, "Export settings",
-                                "Settings exported. Passwords are not included; window positions stay on this PC.")
+        QMessageBox.information(self, T('Export settings'),
+                                T('Settings exported. Passwords are not included; window positions stay on this PC.'))
 
     def _import(self) -> None:
         import os
         start = os.path.join(os.path.expanduser("~"), "Documents")
-        path, _ = QFileDialog.getOpenFileName(self, "Import settings", start, "Settings (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, T('Import settings'), start, "Settings (*.json)")
         if not path:
             return
         try:
             changed = self.s.import_from(path)
         except ValueError as e:
-            QMessageBox.warning(self, "Import settings", str(e))
+            QMessageBox.warning(self, T('Import settings'), str(e))
             return
         self.s.save()
         self.applied.emit()
-        QMessageBox.information(self, "Import settings",
-                                f"Imported and applied ({len(changed)} setting{'s' if len(changed) != 1 else ''} "
-                                "changed). Settings will reopen with the new values.")
+        QMessageBox.information(self, T('Import settings'),
+                                (T('Imported and applied (1 setting changed). Settings will reopen with the new values.') if len(changed) == 1 else T('Imported and applied ({count} settings changed). Settings will reopen with the new values.', count=len(changed))))
         self.accept()
         self.reopen_requested.emit()
 
     def _clear_cache(self) -> None:
         self.clear_cache_requested.emit()
-        QMessageBox.information(self, "Cache", "Cache cleared. Data will be fetched again.")
+        QMessageBox.information(self, T('Cache'), T('Cache cleared. Data will be fetched again.'))
 
     def _save(self) -> None:
         s = self.s
@@ -726,6 +751,7 @@ class SettingsDialog(QDialog):
         s.default_tab = self.default_tab.currentData()
         s.time_format = self.time_fmt.currentData()
         s.timezone = self.tz.currentData() or "auto"
+        s.language = self.lang.currentData() or "auto"
         s.schedule_refresh_h = self.sched_h.value()
         s.standings_refresh_h = self.stand_h.value()
         s.accent = self.accent
@@ -748,6 +774,10 @@ class SettingsDialog(QDialog):
         s.notify_quali = self.n_quali.isChecked()
         s.notify_sprint = self.n_sprint.isChecked()
         s.notify_lead_min = self.lead.value()
+        s.notify_results = self.n_results.isChecked()
+        if self.spoiler.isChecked() and not s.spoiler_free:
+            s.spoiler_revealed_at = time.time()   # turning it on hides only what comes next
+        s.spoiler_free = self.spoiler.isChecked()
         race = self.store.race
         if race is not None and self.offsets:
             offs = {k: sp.value() for k, sp in self.offsets.items() if sp.value()}
@@ -761,7 +791,7 @@ class SettingsDialog(QDialog):
         s.openf1_username = user
         if user and self.pw.text():
             if not credentials.set_password(user, self.pw.text()):
-                QMessageBox.warning(self, "OpenF1", "Could not store the password in Windows Credential Manager.")
+                QMessageBox.warning(self, T('OpenF1'), T('Could not store the password in Windows Credential Manager.'))
         self.pw.clear()
         s.debug_force_tabs = self.debug.isChecked()
         s.clamp()

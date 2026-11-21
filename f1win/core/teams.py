@@ -1,6 +1,8 @@
 """Team colours and flag names (shared.luau)."""
 from __future__ import annotations
 
+from ..i18n import T
+
 from .sanitize import safe
 
 # Approximate 2026 constructor colours keyed by Jolpica constructorId.
@@ -31,15 +33,15 @@ def team_color(constructor_id: str, fallback: str = FALLBACK) -> str:
 
 
 FLAGS = {
-    "GREEN": "Green flag",
-    "CLEAR": "Track clear",
-    "YELLOW": "Yellow flag",
-    "DOUBLE YELLOW": "Double yellow",
-    "RED": "Red flag",
-    "CHEQUERED": "Chequered flag",
-    "BLUE": "Blue flag",
-    "SAFETY CAR": "Safety car",
-    "VSC": "Virtual safety car",
+    "GREEN": T('Green flag'),
+    "CLEAR": T('Track clear'),
+    "YELLOW": T('Yellow flag'),
+    "DOUBLE YELLOW": T('Double yellow'),
+    "RED": T('Red flag'),
+    "CHEQUERED": T('Chequered flag'),
+    "BLUE": T('Blue flag'),
+    "SAFETY CAR": T('Safety car'),
+    "VSC": T('Virtual safety car'),
     "VSC ENDING": "VSC ending",
 }
 

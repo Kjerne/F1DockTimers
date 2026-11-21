@@ -40,9 +40,113 @@ def taskbar_rects() -> dict | None:
         if not bar:
             return None
         tray = user32.FindWindowExW(bar, None, "TrayNotifyWnd", None)
-        return {"bar": _rect(bar), "tray": _rect(tray)}
+        out = {"bar": _rect(bar), "tray": _rect(tray)}
+        others = taskbar_neighbours(bar)
+        if user32.FindWindowExW(bar, None, "Windows.UI.Composition.DesktopWindowContentBridge", None):
+            # Windows 11 taskbar: the Widgets (weather) button can sit next to the tray (left-aligned
+            # taskbar). Its position comes from a background UI Automation lookup; never blocks.
+            from .widgets_button import widgets_button_rect
+            wb = widgets_button_rect()
+            if wb:
+                others.append(wb)
+        out["anchor"] = with_neighbours(out["bar"], out["tray"], others)
+        return out
     except Exception:
         return None
+
+
+# Explorer's own parts of the taskbar; anything else inside it is another app's add-on
+# (e.g. a battery widget) that we should sit beside instead of covering.
+_TASKBAR_CORE = {"TrayNotifyWnd", "ReBarWindow32", "Start", "TrayDummySearchControl", "TrayButton",
+                 "Windows.UI.Composition.DesktopWindowContentBridge", "Windows.UI.Input.InputSite.WindowClass",
+                 "MSTaskSwWClass", "TrayShowDesktopButtonWClass", "F1DockTimersTaskbarPill"}
+GW_CHILD = 5
+
+
+def taskbar_neighbours(bar) -> list[tuple[int, int, int, int]]:
+    """Visible add-ons inside the taskbar from other apps (and Windows 10's weather button)."""
+    import os
+    own = os.getpid()
+    user32.GetWindow.restype = wintypes.HWND
+    pid = wintypes.DWORD()
+    cls = ctypes.create_unicode_buffer(128)
+    out = []
+    h = user32.GetWindow(bar, GW_CHILD)
+    for _ in range(200):
+        if not h:
+            break
+        if user32.IsWindowVisible(h):
+            user32.GetWindowThreadProcessId(h, ctypes.byref(pid))
+            user32.GetClassNameW(h, cls, 128)
+            r = _rect(h)
+            if pid.value != own and cls.value not in _TASKBAR_CORE and r and r[2] > r[0] and r[3] > r[1]:
+                out.append(r)
+        h = user32.GetWindow(h, GW_HWNDNEXT)
+    return out
+
+
+def with_neighbours(bar_r, tray_r, others):
+    """The tray rect grown to include add-ons packed right next to it, so we go beside them."""
+    if not bar_r or not tray_r:
+        return tray_r
+    vertical = (bar_r[3] - bar_r[1]) > (bar_r[2] - bar_r[0])
+    left, top, right, bottom = tray_r
+    limit = (bar_r[3] - bar_r[1]) // 3 if vertical else (bar_r[2] - bar_r[0]) // 3
+    for _ in range(8):                      # follow a chain of widgets, nearest first
+        moved = False
+        for r in others:
+            if vertical:
+                if r[3] - r[1] < limit and r[0] < bar_r[2] and r[2] > bar_r[0] and top - 16 <= r[3] <= top + 4 \
+                        and r[1] < top:
+                    top, moved = r[1], True
+            elif r[2] - r[0] < limit and r[1] < bar_r[3] and r[3] > bar_r[1] and left - 16 <= r[2] <= left + 4 \
+                    and r[0] < left:
+                left, moved = r[0], True
+        if not moved:
+            break
+    return left, top, right, bottom
+
+
+def fit_task_buttons(bar, right_edge: int) -> None:
+    """Classic (Windows 10 style) taskbar: stop the app buttons at `right_edge` (screen px) so
+    they never slide under us. Explorer widens them again on its own layout passes, so this is
+    re-applied regularly. Windows 11's XAML taskbar has no such window and is left alone."""
+    if not IS_WIN or not bar:
+        return
+    try:
+        rebar = user32.FindWindowExW(bar, None, "ReBarWindow32", None)
+        if not rebar or user32.FindWindowExW(bar, None, "Windows.UI.Composition.DesktopWindowContentBridge", None):
+            return
+        r, b = _rect(rebar), _rect(bar)
+        if not r or not b or (b[3] - b[1]) > (b[2] - b[0]):       # vertical taskbar: leave it
+            return
+        if r[0] < right_edge < r[2]:
+            p = wintypes.POINT(r[0], r[1])
+            user32.ScreenToClient(bar, ctypes.byref(p))
+            user32.MoveWindow(rebar, p.x, p.y, right_edge - r[0], r[3] - r[1], True)
+    except Exception:
+        pass
+
+
+def release_task_buttons(bar, our_rect=None) -> None:
+    """Give the app buttons back the room we took (up to the next add-on or the tray)."""
+    if not IS_WIN or not bar:
+        return
+    try:
+        rebar = user32.FindWindowExW(bar, None, "ReBarWindow32", None)
+        if not rebar or user32.FindWindowExW(bar, None, "Windows.UI.Composition.DesktopWindowContentBridge", None):
+            return
+        b, r = _rect(bar), _rect(rebar)
+        tray = _rect(user32.FindWindowExW(bar, None, "TrayNotifyWnd", None))
+        if not b or not r or not tray:
+            return
+        edge = with_neighbours(b, tray, taskbar_neighbours(bar))[0]
+        if r[2] < edge and (our_rect is None or r[2] <= our_rect[0] + 2):
+            p = wintypes.POINT(r[0], r[1])
+            user32.ScreenToClient(bar, ctypes.byref(p))
+            user32.MoveWindow(rebar, p.x, p.y, edge - r[0], r[3] - r[1], True)
+    except Exception:
+        pass
 
 
 def foreground_is_fullscreen() -> bool:

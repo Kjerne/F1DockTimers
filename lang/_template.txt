@@ -1,0 +1,426 @@
+# F1DockTimers translation template.
+#
+# To add a language:
+#  1. Copy this file to <code>.txt, for example "da.txt" or "pt-BR.txt".
+#  2. Fill in @code (the language code) and @name (the language's name in its own words).
+#  3. Write the translation after " = " on each line. Lines left empty stay English.
+#  Keep {placeholders} exactly as they are (you may move them); the app fills them in.
+#  "\n" is a line break. The file is plain UTF-8 text.
+#
+# Try it: put the file in %APPDATA%\F1DockTimers\lang (Settings > General > Language >
+# Open language folder), pick the language and restart the app.
+# Share it as a pull request (into the lang folder) so everyone gets it.
+@code =
+@name =
+
+# f1win/app.py
+Install update {version}… = 
+{app_title} {version} is available = 
+Click here, or use "Install update" in the tray menu. = 
+{app_title} update = 
+<b>Version {version}</b> is available. You have {current}. = 
+Install and restart = 
+Open download page = 
+Release page = 
+Skip this version = 
+Later = 
+Downloading the update… = 
+Cancel = 
+\n\nYou can download it from the release page. = 
+Open Formula 1 panel = 
+Refresh data = 
+Desktop widget = 
+Taskbar countdown = 
+Widget click-through = 
+Widget always on top = 
+Install update… = 
+Check for updates = 
+Settings… = 
+Start with Windows = 
+Exit = 
+Widget is click-through. Turn it off from the tray icon menu. = 
+
+# f1win/core/credentials_hint.py
+Live data during a session needs the OpenF1 Sponsor plan. Add your OpenF1 username and password in Settings › Live data (stored in Windows Credential Manager). On the Free plan the session's results appear here after it ends, and every other tab keeps working. = 
+
+# f1win/core/sessions.py
+Practice 1 = 
+Practice 2 = 
+Practice 3 = 
+Sprint Quali = 
+Sprint = 
+Qualifying = 
+Race = 
+
+# f1win/core/teams.py
+Green flag = 
+Track clear = 
+Yellow flag = 
+Double yellow = 
+Red flag = 
+Chequered flag = 
+Blue flag = 
+Safety car = 
+Virtual safety car = 
+
+# f1win/core/timeutil.py
+Mon = 
+Tue = 
+Wed = 
+Thu = 
+Fri = 
+Sat = 
+Sun = 
+Jan = 
+Feb = 
+Mar = 
+Apr = 
+May = 
+Jun = 
+Jul = 
+Aug = 
+Sep = 
+Oct = 
+Nov = 
+Dec = 
+live = 
+{days}d = 
+{hours}h = 
+{minutes}m = 
+<1m = 
+live now = 
+in {time} = 
+never = 
+
+# f1win/services/notifier.py
+{where} · {get} results = 
+Lights out {fmt_long} ({when}) = 
+{name} starts {fmt_long} ({when}) = 
+
+# f1win/services/updater.py
+This copy is updated by the Microsoft Store. = 
+No release published yet. = 
+Couldn't reach GitHub ({status}). = 
+You're up to date (version {version}). = 
+Version {version} is available (you have {current}). = 
+This release has no verifiable download for your copy. Opening the release page. = 
+The download is unexpectedly large; not installing. = 
+The download failed or was cancelled. = 
+The download came from an unexpected server; not installing. = 
+The download doesn't match GitHub's published checksum; not installing. = 
+Not installing: {why}. = 
+Couldn't verify the download ({name}). = 
+Couldn't start the update ({name}). = 
+
+# f1win/ui/desktop_widget.py
+Formula 1 widget = 
+Formula 1 desktop widget = 
+Refresh = 
+Open panel = 
+Lock position and size = 
+Always on top = 
+Click-through (turn off from the tray menu) = 
+Hide widget = 
+
+# f1win/ui/panel.py
+Schedule = 
+Grid = 
+Live = 
+Last = 
+Drivers = 
+Teams = 
+FORMULA 1 = 
+Grand Prix = 
+A newer version is available. Click to update. = 
+Update {update_version} available = 
+Update {version} available = 
+Round {round} · {season} = 
+Loading… = 
+No upcoming race = 
+
+# f1win/ui/popup.py
+Formula 1 = 
+Formula 1 panel = 
+
+# f1win/ui/settings_dialog.py
+Launch F1DockTimers automatically when you sign in to Windows. = 
+Ask GitHub once a day whether a newer F1DockTimers exists. Sends no personal data. = 
+On: start quietly in the tray. Off: open the panel at launch. = 
+A movable F1 panel that stays on your desktop. = 
+Tab the panel opens on. Live and Grid take over automatically during a session / after qualifying. = 
+How session times are written: 14:00 or 02:00 PM. = 
+Zone for all session times. Automatic follows Windows. Click, then type to jump (e.g. "Europe/Co"). = 
+How often the race calendar is checked for changes. = 
+How often driver/team standings and the last result are refreshed. = 
+Highlight colour: selected tab, countdown, favourites. = 
+Noto Sans is the original look; Monospace uses Cascadia Mono / Consolas. = 
+Text size in the panel and widget. = 
+Size of the whole panel and widget, on top of Windows display scaling. = 
+How see-through the tray panel background is. = 
+How see-through the desktop widget background is (text stays solid). = 
+Circuit fade-in, start lights sequence and popup slide. = 
+Keep the desktop widget above other windows. = 
+Mouse clicks go through the widget. Turn this off again from the tray icon menu. = 
+Stop the widget from being moved or resized by accident. = 
+Restore the widget where you left it after a restart. = 
+What a double-click on the desktop widget does. = 
+Small countdown next to the tray icons. Hides itself over fullscreen games. = 
+Noctalia: dark box with accent text. Match taskbar: transparent with Windows colours. Custom: your colours. = 
+Background colour (Custom style). = 
+Background see-through amount (Custom style). 0 % = only text. = 
+Colour of the first line (Custom style). = 
+Colour of the second line (Custom style). = 
+Colour used while a session is live (Custom style). = 
+Thin outline around the countdown box. = 
+Outline colour (Custom style). = 
+Rounded corners. 0 = square box. = 
+Fixed width, or Automatic to fit the text. You can also drag the box's left edge on the taskbar. = 
+Automatic leaves a small gap, Full fills the taskbar height, Custom uses the pixel value. = 
+Box height in pixels (Custom height). = 
+Distance from the tray icons. You can also drag the box along the taskbar. = 
+Largest text size. With auto-fit the text shrinks when it would not fit. = 
+Shrink the text so it always fits inside the box. = 
+Write the first line in bold. = 
+Text alignment inside the box. = 
+One compact line or two lines. = 
+Ready-made layouts. Fills the four line fields below. = 
+What the first line shows. Use the {tokens} listed below. = 
+What the second line shows. = 
+First line while a session is live. = 
+Second line while a session is live. = 
+Next race: big countdown always to the Grand Prix (LIGHTS OUT in 4d 9h).\nNext session: counts to whatever is next (NEXT · PRACTICE 1 in 2d 6h), LIGHTS OUT for the race.\nAlso used by the tray tooltip. The taskbar countdown always shows the next session. = 
+Shown in the accent colour in every table. = 
+Team shown in the accent colour in every table. = 
+Coloured bar beside each driver and team. = 
+Windows notification before the race starts. = 
+Windows notification before qualifying starts. = 
+Windows notification before the sprint starts. = 
+How many minutes before the session the notification appears. = 
+After qualifying, the sprint and the race: a notification with the top 3.\nNot shown while spoiler-free mode hides the results. = 
+Hides results, grid, live timing and standings once a qualifying, sprint or race has started, until you press Show results. For when you watch later. = 
+OpenF1 Free: no account; full results ~20–30 min after each session.\nFree + F1 live stream: live order and gaps during sessions from F1's own (unofficial) stream, full results from OpenF1 afterwards. May stop working at any time.\nOpenF1 Sponsor: official live data during sessions; needs a paid OpenF1 account. = 
+Your OpenF1 account e-mail (Sponsor plan only). = 
+Stored in Windows Credential Manager, never in files or logs. = 
+Show Grid and Live outside race weekends using the last session's data. For testing. = 
+{app_title} · Settings = 
+General = 
+Appearance = 
+Taskbar = 
+Live data = 
+About = 
+Start minimized to the tray (no popup at launch) = 
+Show the desktop widget = 
+Default tab = 
+24-hour = 
+12-hour = 
+Time format = 
+Click, then type to jump, e.g. "Europe/Co" = 
+Automatic (Windows: {system_zone_name}) = 
+Time zone = 
+Automatic (Windows language) = 
+Open language folder = 
+Add your own translation here: copy _template.txt, translate it and restart. = 
+Language = 
+A new language takes effect after restarting F1DockTimers. = 
+Schedule refresh = 
+Standings refresh = 
+Refresh data now = 
+Clear cache = 
+Check for updates automatically (once a day) = 
+Check for updates (you have {version}) = 
+Export settings… = 
+Save all settings to a .json file (no passwords) = 
+Import settings… = 
+Load settings from an exported .json file = 
+Original = 
+Accent colour = 
+Noto Sans (original) = 
+Monospace = 
+Typeface = 
+Font size = 
+Interface scale = 
+Popup opacity = 
+Widget background opacity = 
+Animations (circuit fade-in, start lights, popup slide) = 
+Click-through (mouse passes through; turn off from the tray menu) = 
+Lock position and size (pin) = 
+Remember position and size = 
+Open the tray panel = 
+Open settings = 
+Nothing = 
+Double-click on widget = 
+Next race = 
+Next session = 
+Countdown target = 
+Race = always to the Grand Prix. Session = to FP1, FP2, Quali … in turn. Hover for more. = 
+(none) = 
+Favourite driver = 
+The driver list fills in once the standings have loaded. = 
+Favourite team = 
+Team colour chips = 
+Spoiler-free mode (hide results until I've watched) = 
+Notifications = 
+Before the race = 
+Before qualifying = 
+Before the sprint = 
+Results (top 3) after qualifying, sprint and race = 
+ min = 
+Lead time = 
+Session-time corrections = 
+Only needed if a delay isn't picked up automatically. Resets next round. = 
+No upcoming race loaded. = 
+Colour = 
+Show the taskbar countdown beside the tray icons = 
+Embed in the taskbar (experimental) = 
+Puts the countdown inside the Windows taskbar instead of floating over it. It then hides with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes trouble, turn it off. = 
+Place next to other taskbar widgets = 
+Sits beside other apps' widgets in the taskbar (e.g. a battery monitor) instead of on top of them. Position then adds extra space from there. = 
+On the taskbar: drag to move · drag the left edge to resize · double-click it to reset. = 
+Noctalia (dark panel, accent text) = 
+Match my Windows taskbar (transparent, system colours) = 
+Custom colours = 
+Style = 
+Border = 
+Background = 
+Background opacity = 
+First line colour = 
+Second line colour = 
+Live highlight = 
+Border colour = 
+ px = 
+0 (square box) = 
+Corner radius = 
+Automatic = 
+Width = 
+Full taskbar height = 
+Custom = 
+Height = 
+ px left of the tray = 
+Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons. = 
+Position = 
+Text size (max) = 
+Auto-fit text to the pill size = 
+First line bold = 
+Left = 
+Centre = 
+Alignment = 
+Two lines = 
+One line = 
+Lines = 
+(custom) = 
+Layout preset = 
+First line = 
+Second line = 
+First line (live) = 
+Second line (live) = 
+Tokens:  = 
+  (hover for examples) = 
+OpenF1 Free · results after each session = 
+OpenF1 Free + F1 live stream (experimental) = 
+OpenF1 Sponsor · live during sessions (account) = 
+you@example.com = 
+OpenF1 username = 
+•••••••• (stored) = 
+password = 
+OpenF1 password = 
+Forget stored password = 
+Remove the password from Windows Credential Manager. = 
+No account needed. Live tab shows final results ~20–30 min after each session. = 
+Live during sessions via F1's unofficial stream, OpenF1 results after. May break anytime. = 
+Official live timing during sessions. Needs a paid OpenF1 account below. = 
+Debug: force Grid and Live tabs = 
+<b>{app_title}</b> {version}<br>F1 schedule, countdowns, live timing and standings for Windows.<br><br>Inspired by the <a href='https://noctalia.dev/plugins/community/f1'>Noctalia F1 plugin</a> (gcap0n1, MIT).<br>Data: Jolpica-F1 · OpenF1. Circuits: bacinger/f1-circuits.<br><br><span style='color:#8F8F9E'>Unofficial · not affiliated with Formula 1. Full credits in THIRD_PARTY_NOTICES.md.</span> = 
+Export settings = 
+Could not write the file:\n{e} = 
+Settings exported. Passwords are not included; window positions stay on this PC. = 
+Import settings = 
+Imported and applied (1 setting changed). Settings will reopen with the new values. = 
+Imported and applied ({count} settings changed). Settings will reopen with the new values. = 
+Cache = 
+Cache cleared. Data will be fetched again. = 
+OpenF1 = 
+Could not store the password in Windows Credential Manager. = 
+
+# f1win/ui/tabs/common.py
+{wins}W = 
+1 win = 
+{wins} wins = 
+-{gap} = 
+Couldn't reach F1 data right now. Retrying automatically. = 
+
+# f1win/ui/tabs/live.py
+OpenF1 rejected the stored username and password. Check them in Settings › Formula 1. = 
+OpenF1 refused the access token. A new one is requested automatically. = 
+The live feed is rate limited; it will retry shortly. = 
+The live feed could not be reached; retrying. = 
+Live timing during a session needs the OpenF1 Sponsor plan (Settings › Live data). On the free plan the full classification appears below about 20–30 minutes after the session ends. = 
+LIVE TIMING = 
+A session is running, but live timing is not available. = 
+No session running right now. = 
+Live positions and track flags appear here automatically during practice, qualifying and the race. = 
+Next: {name} · {fmt_datetime} = 
+{pits} pit = 
+Final classification · {when} · OpenF1 = 
+Final classification · OpenF1 = 
+{laps} laps = 
+ · {pts} pts = 
+{fmt_clock} left = 
+
+# f1win/ui/tabs/schedule.py
+LIGHTS OUT = 
+NEXT · {upper} = 
+Race finished = 
+Countdown = 
+SESSIONS = 
+Start time from F1's live timing (revised) = 
+Start time corrected by hand in Settings = 
+Published schedule time = 
+
+# f1win/ui/tabs/tables.py
+No grid available. It appears here after qualifying. = 
+STARTING GRID = 
+Provisional — excludes penalties = 
+Official starting grid = 
+No results yet = 
+LAST RACE · {upper} = 
+Fastest lap  {driver}  {time}  (lap {lap}) = 
+{get} · {status} = 
+ · Open on Wikipedia = 
+No standings available = 
+DRIVER STANDINGS = 
+CONSTRUCTOR STANDINGS = 
+SPOILER-FREE MODE = 
+Results from {what} are hidden until you've watched it. = 
+A session at {what} is running. Live timing and results are hidden. = 
+Show results = 
+Reveals everything up to now. Hidden again when the next qualifying, sprint or race starts. = 
+Turn spoiler-free mode off in Settings › Formula 1. = 
+
+# f1win/ui/taskbar_pill.py
+Round, e.g. R21 = 
+Short race name, e.g. Las Vegas = 
+Las Vegas Grand Prix = 
+FP1 / FP2 / Q2 / Sprint / GP = 
+Local start, e.g. Fri 01:30 = 
+20 Nov = 
+in 2d 6h 19m = 
+Las Vegas = 
+USA = 
+Las Vegas Strip Street Circuit = 
+LIVE, or LIVE · 12:34 left = 
+Track flag while live = 
+Leader while live = 
+Session and countdown = 
+Race and countdown = 
+Compact (one line) = 
+Weekend over = 
+done = 
+Formula 1 countdown = 
+{name}\n = 
+\n\nClick: panel · Drag: move · Drag left edge: resize · Right-click: menu = 
+
+# f1win/ui/widgets.py
+{text} tab = 
+Start lights = 
+Circuit outline = 
+Open on Wikipedia = 

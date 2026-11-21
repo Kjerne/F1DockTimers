@@ -23,8 +23,9 @@ class Settings:
     start_minimized: bool = True
     widget_enabled: bool = False
     taskbar_pill: bool = True              # countdown pill next to the tray icons
-    taskbar_pill_offset: int = 0           # px further left of the tray (user drag)
+    taskbar_pill_offset: int = 0           # px further left of the tray (user drag); negative = closer
     pill_embed: bool = False               # live inside the taskbar window (experimental)
+    pill_auto_dock: bool = True            # sit beside other apps' taskbar widgets
     pill_style: str = "noctalia"           # noctalia | taskbar | custom
     pill_radius: int = 7                   # 0 = square box
     pill_width: int = 0                    # 0 = automatic
@@ -48,6 +49,7 @@ class Settings:
     default_tab: str = "schedule"          # schedule | drivers | constructors (as original)
     time_format: str = "24h"               # 24h | 12h
     timezone: str = "auto"                 # auto | IANA name
+    language: str = "auto"                 # auto (Windows language) | language code from lang/*.txt
     schedule_refresh_h: float = 6.0
     standings_refresh_h: float = 3.0
 
@@ -76,6 +78,9 @@ class Settings:
     notify_quali: bool = False
     notify_sprint: bool = False
     notify_lead_min: int = 10
+    notify_results: bool = True           # podium/top 3 after quali, sprint and race
+    spoiler_free: bool = False            # hide results until "Show results"
+    spoiler_revealed_at: float = 0.0      # when results were last revealed (epoch s)
     session_offsets: dict = field(default_factory=dict)  # {"round_key": "...", "fp1": minutes, ...}
     live_source: str = "openf1"            # openf1 | f1_feed (experimental)
     openf1_plan: str = "free"              # free (historical, no account) | sponsor (live, account)
@@ -143,7 +148,7 @@ class Settings:
         if self.widget_double_click not in ("refresh", "panel", "settings", "none"):
             self.widget_double_click = "refresh"
         self.notify_lead_min = max(0, min(120, self.notify_lead_min))
-        self.taskbar_pill_offset = max(0, min(1600, self.taskbar_pill_offset))
+        self.taskbar_pill_offset = max(-400, min(1600, self.taskbar_pill_offset))   # negative: towards the tray
         if self.pill_style not in ("noctalia", "taskbar", "custom"):
             self.pill_style = "noctalia"
         if self.pill_align not in ("left", "center"):
@@ -167,7 +172,7 @@ class Settings:
 
     # Not carried between PCs: window positions depend on the monitors there.
     MACHINE_SPECIFIC = ("widget_geometry", "start_with_windows", "update_checked_at", "update_notified",
-                        "skipped_version")
+                        "skipped_version", "spoiler_revealed_at")
 
     def export_to(self, file: Path) -> None:
         """Write a shareable copy. Never contains secrets (the OpenF1 password is

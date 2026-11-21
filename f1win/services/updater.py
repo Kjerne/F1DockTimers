@@ -30,6 +30,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 
 from ..core.sanitize import safe
 from ..version import USER_AGENT, VERSION
+from ..i18n import T
 
 log = logging.getLogger(__name__)
 
@@ -170,10 +171,14 @@ class Updater(QObject):
         self._timer = QTimer(self)
         self._timer.setInterval(3600 * 1000)   # wake hourly, check if a day has passed
         self._timer.timeout.connect(self._maybe_check)
-        self.kind = install_kind(getattr(sys, "frozen", False), Path(sys.executable),
-                                 getattr(sys, "_MEIPASS", None), os.environ.get("LOCALAPPDATA"))
+        from .packaging import is_packaged
+        self.kind = "store" if is_packaged() else install_kind(
+            getattr(sys, "frozen", False), Path(sys.executable), getattr(sys, "_MEIPASS", None),
+            os.environ.get("LOCALAPPDATA"))
 
     def start(self) -> None:
+        if self.kind == "store":
+            return                  # the Microsoft Store updates this copy itself
         self._timer.start()
         QTimer.singleShot(FIRST_CHECK_MS, self._maybe_check)
 
@@ -182,6 +187,10 @@ class Updater(QObject):
             self.check(manual=False)
 
     def check(self, manual: bool = True) -> None:
+        if self.kind == "store":
+            if manual:
+                self.checked.emit(False, T("This copy is updated by the Microsoft Store."))
+            return
         req = QNetworkRequest(QUrl(API_LATEST))
         req.setRawHeader(b"User-Agent", USER_AGENT.encode())
         req.setRawHeader(b"Accept", b"application/vnd.github+json")
@@ -195,7 +204,7 @@ class Updater(QObject):
         body = bytes(reply.readAll())
         reply.deleteLater()
         if status != 200:
-            msg = "No release published yet." if status == 404 else f"Couldn't reach GitHub ({status or 'offline'})."
+            msg = T('No release published yet.') if status == 404 else T("Couldn't reach GitHub ({status}).", status=status or 'offline')
             log.info("update check failed: %s", status)
             if manual:
                 self.checked.emit(False, msg)
@@ -209,12 +218,12 @@ class Updater(QObject):
         if rel is None or not is_newer(rel["version"]):
             self.latest = None
             if manual:
-                self.checked.emit(False, f"You're up to date (version {VERSION}).")
+                self.checked.emit(False, T("You're up to date (version {version}).", version=VERSION))
             return
         self.latest = rel
         log.info("update available: %s", rel["version"])
         if manual:
-            self.checked.emit(True, f"Version {rel['version']} is available (you have {VERSION}).")
+            self.checked.emit(True, T('Version {version} is available (you have {current}).', version=rel['version'], current=VERSION))
         self.available.emit(rel)
 
     # ── install ─────────────────────────────────────────────────────────────
@@ -227,10 +236,10 @@ class Updater(QObject):
         rel = self.latest
         asset = pick_asset(rel["raw"], self.kind) if rel else None
         if asset is None:
-            self.failed.emit("This release has no verifiable download for your copy. Opening the release page.")
+            self.failed.emit(T('This release has no verifiable download for your copy. Opening the release page.'))
             return
         if asset["size"] > MAX_DOWNLOAD:
-            self.failed.emit("The download is unexpectedly large; not installing.")
+            self.failed.emit(T('The download is unexpectedly large; not installing.'))
             return
         folder = Path(tempfile.gettempdir()) / "F1DockTimers-update"
         folder.mkdir(exist_ok=True)
@@ -266,10 +275,10 @@ class Updater(QObject):
         host = reply.url().host()
         reply.deleteLater()
         if not ok:
-            self._discard("The download failed or was cancelled.")
+            self._discard(T('The download failed or was cancelled.'))
             return
         if not any(host == h or host.endswith("." + h) for h in DOWNLOAD_HOSTS):
-            self._discard("The download came from an unexpected server; not installing.")
+            self._discard(T('The download came from an unexpected server; not installing.'))
             return
         # Hashing ~45 MB and asking PowerShell about signatures takes a few seconds: do it on a
         # worker thread so the UI (and, in embedded mode, Explorer's taskbar) never waits for it.
@@ -278,12 +287,12 @@ class Updater(QObject):
     def _verify(self, target: Path, sha: str) -> None:
         try:
             if sha256_file(target) != sha:
-                self._verified.emit("The download doesn't match GitHub's published checksum; not installing.")
+                self._verified.emit(T("The download doesn't match GitHub's published checksum; not installing."))
                 return
             ok, why = signature_ok(authenticode(Path(sys.executable)), authenticode(target))
-            self._verified.emit("" if ok else f"Not installing: {why}.")
+            self._verified.emit("" if ok else T('Not installing: {why}.', why=why))
         except Exception as e:      # noqa: BLE001 - reported to the user, never silently installed
-            self._verified.emit(f"Couldn't verify the download ({e.__class__.__name__}).")
+            self._verified.emit(T("Couldn't verify the download ({name}).", name=e.__class__.__name__))
 
     def _after_verify(self, problem: str) -> None:
         if problem:
@@ -321,7 +330,7 @@ class Updater(QObject):
                 subprocess.Popen([str(new), "--show", "--wait-pid", pid, "--replaces", str(old)],
                                  creationflags=flags, close_fds=True)
         except OSError as e:
-            self.failed.emit(f"Couldn't start the update ({e.__class__.__name__}).")
+            self.failed.emit(T("Couldn't start the update ({name}).", name=e.__class__.__name__))
             return
         log.info("update %s launched; exiting", self._asset["name"])
         self.ready_to_quit.emit()

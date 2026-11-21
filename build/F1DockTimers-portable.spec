@@ -3,7 +3,7 @@
 import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
-VERSION = os.environ.get("F1DT_VERSION", "1.0.5")
+VERSION = os.environ.get("F1DT_VERSION", "1.0.6")
 
 a = Analysis(
     [os.path.join(ROOT, "launch.pyw")],
@@ -13,6 +13,7 @@ a = Analysis(
         (os.path.join(ROOT, "LICENSE"), "."),
         (os.path.join(ROOT, "THIRD_PARTY_NOTICES.md"), "."),
         (os.path.join(ROOT, "licenses"), "licenses"),
+        (os.path.join(ROOT, "lang"), "lang"),
     ],
     hiddenimports=["keyring.backends.Windows", "win32ctypes.core", "tzdata"],
     excludes=["tkinter", "unittest", "pydoc", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtWebEngineCore",

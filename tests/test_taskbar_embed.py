@@ -64,3 +64,30 @@ def test_floating_mode_unchanged(qapp, tmp_path):
         assert not pill.embedded and pill.isVisible()
     finally:
         pill.stop()
+
+
+def test_docks_beside_other_widgets():
+    from f1win.services.winshell import with_neighbours
+    bar, tray = (0, 1050, 1920, 1080), (1624, 1050, 1920, 1080)
+    battery = (1503, 1050, 1622, 1080)          # packed against the tray
+    other = (1380, 1050, 1500, 1080)            # packed against the battery widget
+    far = (600, 1050, 700, 1080)                # somewhere in the middle: not ours to dodge
+    assert with_neighbours(bar, tray, [])[0] == 1624
+    assert with_neighbours(bar, tray, [battery])[0] == 1503
+    assert with_neighbours(bar, tray, [far, other, battery])[0] == 1380
+    assert with_neighbours(bar, tray, [far])[0] == 1624
+    # vertical taskbar on the right: widgets stack above the tray
+    vbar, vtray = (1860, 0, 1920, 1080), (1860, 900, 1920, 1080)
+    assert with_neighbours(vbar, vtray, [(1862, 840, 1918, 898)])[1] == 840
+
+
+def test_widgets_button_lookup_is_safe_here():
+    """The UI Automation lookup runs off the UI thread and never raises; None when there is no button."""
+    import time
+    from f1win.services.widgets_button import WidgetsButtonWatch
+    w = WidgetsButtonWatch()
+    w.start()
+    time.sleep(1.5)
+    r = w.rect()
+    w.stop()
+    assert r is None or (len(r) == 4 and r[2] > r[0])

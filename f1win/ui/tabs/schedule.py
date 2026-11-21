@@ -10,6 +10,7 @@ from ...core.sessions import current_session, next_session, session_ts
 from ...core.timeutil import fmt_datetime, fmt_long, now_sec, utc_offset_label
 from ..widgets import LightsGantry, Row, Text, TrackView, Wrap
 from .common import Tab
+from ...i18n import T
 
 LIGHT_STEP_MS = 620
 LIGHT_HOLD_MS = 1100
@@ -26,13 +27,13 @@ def countdown_state(race, settings, now: int) -> tuple[str, str, bool]:
     if settings.countdown_target == "session":
         nxt = next_session(sessions, now)
         if nxt is not None:
-            label = "LIGHTS OUT" if nxt.id == "race" else f"NEXT · {nxt.name.upper()}"
+            label = T('LIGHTS OUT') if nxt.id == "race" else T('NEXT · {upper}', upper=nxt.name.upper())
             return label, fmt_long(nxt.ts - now), False
     if race_ts is None:
         return "", "", False
     if now >= race_ts:
-        return "LIGHTS OUT", "Race finished", False
-    return "LIGHTS OUT", fmt_long(race_ts - now), False
+        return T('LIGHTS OUT'), T('Race finished'), False
+    return T('LIGHTS OUT'), fmt_long(race_ts - now), False
 
 
 class ScheduleTab(Tab):
@@ -50,7 +51,7 @@ class ScheduleTab(Tab):
         race = ctx.store.race
         if race is None:
             loading = ctx.store.status.get("loading")
-            self.hint("Loading…" if loading else "No upcoming race")
+            self.hint(T('Loading…') if loading else T('No upcoming race'))
             self.finish()
             self.gantry = None
             return
@@ -70,10 +71,10 @@ class ScheduleTab(Tab):
         self.gantry = LightsGantry(t)
         ll.addWidget(self.gantry)
         ll.addSpacing(t.px(4))
-        self.cd_label = Text("LIGHTS OUT", t, 11, True, t.muted, tracking=0.6)
+        self.cd_label = Text(T('LIGHTS OUT'), t, 11, True, t.muted, tracking=0.6)
         ll.addWidget(self.cd_label)
         self.countdown = Text("", t, 22, True, t.accent)
-        self.countdown.setAccessibleName("Countdown")
+        self.countdown.setAccessibleName(T('Countdown'))
         ll.addWidget(self.countdown)
         ll.addStretch(1)
         top_l.addWidget(left, 1)
@@ -87,7 +88,7 @@ class ScheduleTab(Tab):
             top_l.addWidget(self.track)
         self.lay.addWidget(top)
         self.lay.addSpacing(t.px(10))
-        self.header("SESSIONS")
+        self.header(T('SESSIONS'))
 
         now = now_sec()
         self.session_rows = []
@@ -107,11 +108,11 @@ class ScheduleTab(Tab):
                     note += " (manual)"
             r.cell(Text(note, t, 11, False, t.secondary), None, 1)
             if s.source == "feed":
-                r.setToolTip("Start time from F1's live timing (revised)")
+                r.setToolTip(T("Start time from F1's live timing (revised)"))
             elif s.source == "manual":
-                r.setToolTip("Start time corrected by hand in Settings")
+                r.setToolTip(T('Start time corrected by hand in Settings'))
             else:
-                r.setToolTip("Published schedule time")
+                r.setToolTip(T('Published schedule time'))
             self.lay.addWidget(r)
             self.session_rows.append((s, name_w, when))
         self.finish()

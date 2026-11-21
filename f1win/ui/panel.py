@@ -10,12 +10,14 @@ from PySide6.QtGui import QColor, QKeySequence, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
 from ..core.sessions import grid_applicable, live_active
+from ..core.spoilers import SPOILER_VIEWS, spoilers_hidden
 from ..core.timeutil import fmt_stamp, now_sec
 from .tabs.common import Ctx
 from .tabs.live import LiveTab
 from .tabs.schedule import ScheduleTab
-from .tabs.tables import ConstructorsTab, DriversTab, GridTab, ResultsTab
+from .tabs.tables import ConstructorsTab, DriversTab, GridTab, ResultsTab, SpoilerTab
 from .widgets import ClickText, Divider, FlagGlyph, IconButton, PillButton, Text
+from ..i18n import T
 
 PIN_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="2" '
            'stroke-linecap="round" stroke-linejoin="round"><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/>'
@@ -31,8 +33,8 @@ REFRESH_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill
                'stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>'
                '<path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>')
 
-TAB_LABELS = {"schedule": "Schedule", "grid": "Grid", "live": "Live", "results": "Last",
-              "drivers": "Drivers", "constructors": "Teams"}
+TAB_LABELS = {"schedule": T('Schedule'), "grid": T('Grid'), "live": T('Live'), "results": T('Last'),
+              "drivers": T('Drivers'), "constructors": T('Teams')}
 RELEVANT = {"schedule": {"race", "status"}, "grid": {"grid", "race"}, "live": {"live", "race"},
             "results": {"results"}, "drivers": {"drivers"}, "constructors": {"constructors"}}
 
@@ -101,7 +103,7 @@ class F1Panel(QWidget):
         header = QHBoxLayout()
         header.setSpacing(t.px(8))
         header.addWidget(FlagGlyph(t, t.accent, 16))
-        header.addWidget(Text("FORMULA 1", t, 11, True, t.muted, tracking=0.6))
+        header.addWidget(Text(T('FORMULA 1'), t, 11, True, t.muted, tracking=0.6))
         header.addStretch(1)
         self.round_label = Text("", t, 11, False, t.muted, Qt.AlignmentFlag.AlignRight)
         header.addWidget(self.round_label)
@@ -117,7 +119,7 @@ class F1Panel(QWidget):
         root.addWidget(Divider(t))
 
         self.title = Text("", t, 20, True, t.on_surface)
-        self.title.setAccessibleName("Grand Prix")
+        self.title.setAccessibleName(T('Grand Prix'))
         root.addWidget(self.title)
 
         self.tabbar_host = QWidget()
@@ -149,10 +151,10 @@ class F1Panel(QWidget):
         refresh = IconButton(REFRESH_SVG, t, "Refresh (R)", 12)
         refresh.clicked.connect(self.refresh_requested)
         self.update_link = ClickText("", t, 10, True, t.accent, Qt.AlignmentFlag.AlignRight)
-        self.update_link.setToolTip("A newer version is available. Click to update.")
+        self.update_link.setToolTip(T('A newer version is available. Click to update.'))
         self.update_link.clicked.connect(self.update_clicked)
         self.update_link.setVisible(bool(self.update_version))
-        self.update_link.setText(f"Update {self.update_version} available" if self.update_version else "")
+        self.update_link.setText(T('Update {update_version} available', update_version=self.update_version) if self.update_version else "")
         foot.addWidget(self.update_link)
         foot.addWidget(refresh)
         root.addLayout(foot)
@@ -162,7 +164,7 @@ class F1Panel(QWidget):
 
     def set_update(self, version: str) -> None:
         self.update_version = version or ""
-        self.update_link.setText(f"Update {version} available" if version else "")
+        self.update_link.setText(T('Update {version} available', version=version) if version else "")
         self.update_link.setVisible(bool(version))
 
     def _toggle_pin(self) -> None:
@@ -187,13 +189,13 @@ class F1Panel(QWidget):
     def _update_header(self) -> None:
         store = self.ctx.store
         race = store.race
-        self.round_label.setText(f"Round {race.round} · {race.season}" if race else "")
+        self.round_label.setText(T('Round {round} · {season}', round=race.round, season=race.season) if race else "")
         if race is not None:
             self.title.setText(race.name)
         elif store.status.get("loading"):
-            self.title.setText("Loading…")
+            self.title.setText(T('Loading…'))
         else:
-            self.title.setText("No upcoming race")
+            self.title.setText(T('No upcoming race'))
         stamp = fmt_stamp(store.last_updated(), self.ctx.zone, self.ctx.twelve)
         bits = [f"Updated {stamp}"]
         if store.status.get("offline"):
@@ -252,7 +254,10 @@ class F1Panel(QWidget):
         cls = {"schedule": ScheduleTab, "grid": GridTab, "live": LiveTab, "results": ResultsTab,
                "drivers": DriversTab, "constructors": ConstructorsTab}[self.view]
         self.ctx.compact = self.width() and self.width() < self.ctx.theme.px(400)
-        w = cls(self.ctx)
+        if self.view in SPOILER_VIEWS and spoilers_hidden(self.ctx.store, self.ctx.settings, now):
+            w = SpoilerTab(self.ctx, self._reveal)
+        else:
+            w = cls(self.ctx)
         old = self.scroll.takeWidget()
         self.scroll.setWidget(w)
         if old is not None:
@@ -260,7 +265,18 @@ class F1Panel(QWidget):
         self.tab_widget = w
         QTimer.singleShot(0, lambda: bar.setValue(keep))
 
+    def _reveal(self) -> None:
+        """"Show results": everything up to now is no longer a spoiler."""
+        import time
+        self.ctx.settings.spoiler_revealed_at = time.time()
+        self.ctx.settings.save()
+        self.ctx.store.changed.emit("results")      # every panel and the pill refresh
+        self.rebuild_body()
+
     def tick(self, now: int) -> None:
+        if (self.view in SPOILER_VIEWS and now % 15 == 0
+                and spoilers_hidden(self.ctx.store, self.ctx.settings, now) != isinstance(self.tab_widget, SpoilerTab)):
+            self.rebuild_body()                        # a session just started (or results were revealed)
         if self.tab_widget is not None:
             self.tab_widget.tick(now)
         if now % 30 == 0:

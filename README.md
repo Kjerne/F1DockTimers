@@ -38,6 +38,10 @@ notification and an **Install update** entry in the tray menu. One click downloa
 checks it against GitHub's published SHA-256 checksum, installs it and restarts. The installed app updates through the
 installer; the portable exe replaces itself. You can turn the check off in Settings › General.
 
+**Checking a download:** each release includes `SHA256SUMS.txt` and a GitHub build attestation, which
+proves the files were built by this repository's GitHub Actions workflow. With the GitHub CLI:
+`gh attestation verify F1DockTimers-x.y.z-portable.exe --repo Kjerne/F1DockTimers`.
+
 The exe isn't code-signed, so Windows SmartScreen may say "Windows protected your PC". Click
 **More info → Run anyway**. You don't need Python for either download.
 
@@ -82,6 +86,20 @@ most of which is the Qt runtime.
 taskbar instead of a window floating over it. It then hides together with the taskbar (fullscreen,
 auto-hide), menus and flyouts always open above it, and clicking the taskbar can't cover it. If
 Explorer restarts it re-attaches by itself; if the taskbar refuses it, the floating window is used.
+
+**Spoiler-free mode** (Settings › Formula 1): watching later? Results, the grid, live timing and the
+standings stay hidden from the moment a qualifying, sprint or race starts, until you press *Show
+results*. Optional notifications show the top 3 after each qualifying, sprint and race.
+
+## Translate
+
+F1DockTimers is in English. Want it in your language?
+
+1. **Settings › General › Language › Open language folder**: a folder opens with `_template.txt`.
+2. Copy it to your language code, e.g. `de.txt`, and fill in `@code` and `@name` at the top.
+3. Translate after ` = ` on each line. Empty lines stay English; keep `{placeholders}` as they are.
+4. Restart, pick your language under Settings › General › Language, and check it.
+5. Happy with it? Share it as a pull request into the `lang` folder so everyone gets it.
 
 ## Data and privacy
 

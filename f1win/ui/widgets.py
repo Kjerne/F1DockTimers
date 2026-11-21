@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 
 from ..core.tracks import geometry
 from .theme import LIGHT_GO, LIGHT_OFF, LIGHT_ON, Theme
+from ..i18n import T
 
 FLAG_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{c}" '
@@ -151,7 +152,7 @@ class PillButton(QWidget):
         self.setFixedWidth(fm.horizontalAdvance(text) + theme.px(20))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setAccessibleName(f"{text} tab")
+        self.setAccessibleName(T('{text} tab', text=text))
         self.setToolTip(text)
 
     def setSelected(self, sel: bool) -> None:
@@ -265,7 +266,7 @@ class LightsGantry(QWidget):
         self.go = False
         d, gap_x, gap_y = theme.px(12), theme.px(7), theme.px(3)
         self.setFixedSize(self.COLUMNS * d + (self.COLUMNS - 1) * gap_x, 2 * d + gap_y)
-        self.setAccessibleName("Start lights")
+        self.setAccessibleName(T('Start lights'))
 
     def set_state(self, lit: int, go: bool) -> None:
         if (lit, go) != (self.lit, self.go):
@@ -297,7 +298,7 @@ class TrackView(QWidget):
         self.fade = 1.0
         self.reveal = 1.0
         self.setFixedSize(theme.px(w), theme.px(h))
-        self.setAccessibleName("Circuit outline")
+        self.setAccessibleName(T('Circuit outline'))
         self._anim: QVariantAnimation | None = None
 
     def animate_in(self, ms: int = 280, draw_ms: int = 0) -> None:
@@ -366,7 +367,7 @@ class Row(QWidget):
         self.lay.setSpacing(theme.px(8))
         if url:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
-            self.setToolTip("Open on Wikipedia")
+            self.setToolTip(T('Open on Wikipedia'))
 
     def cell(self, w: QWidget, width: int | None = None, stretch: int = 0) -> QWidget:
         if width is not None:

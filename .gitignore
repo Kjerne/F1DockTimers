@@ -8,3 +8,7 @@ build/app.ico
 *.spec.bak
 .pytest_cache/
 upload/
+
+# Store / winget working files
+build/msix-stage/
+manifests/

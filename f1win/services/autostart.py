@@ -32,12 +32,21 @@ def _has(name: str) -> bool:
 def is_enabled() -> bool:
     if sys.platform != "win32":
         return False
+    from . import packaging
+    if packaging.is_packaged():
+        return packaging.startup_task_enabled()
     return _has(VALUE) or _has(LEGACY_VALUE)
 
 
-def set_enabled(on: bool) -> bool:
+def set_enabled(on: bool, interactive: bool = False) -> bool:
+    """Turn start-up on/off. ``interactive``: the user asked (Store version: open Windows' page)."""
     if sys.platform != "win32":
         return False
+    from . import packaging
+    if packaging.is_packaged():
+        if interactive and on != is_enabled():
+            packaging.open_startup_settings()
+        return True
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:

@@ -29,35 +29,36 @@ from ..core.sessions import SESSION_NAMES, current_session, live_active, next_se
 from ..core.teams import friendly_flag
 from ..core.timeutil import MONTHS, fmt_clock, fmt_datetime, fmt_long, fmt_short, now_sec, to_local
 from ..services import taskbar_embed, winshell
+from ..i18n import T
 
 SHORT = {"fp1": "FP1", "fp2": "FP2", "fp3": "FP3", "sprint_quali": "SQ", "sprint": "Sprint",
          "quali": "Quali", "race": "GP"}
 
 TOKENS = {
-    "round": "Round, e.g. R21",
-    "race": "Short race name, e.g. Las Vegas",
-    "race_full": "Las Vegas Grand Prix",
-    "session": "FP1 / FP2 / Q2 / Sprint / GP",
-    "session_full": "Practice 1",
-    "time": "Local start, e.g. Fri 01:30",
-    "date": "20 Nov",
-    "countdown": "in 2d 6h 19m",
+    "round": T('Round, e.g. R21'),
+    "race": T('Short race name, e.g. Las Vegas'),
+    "race_full": T('Las Vegas Grand Prix'),
+    "session": T('FP1 / FP2 / Q2 / Sprint / GP'),
+    "session_full": T('Practice 1'),
+    "time": T('Local start, e.g. Fri 01:30'),
+    "date": T('20 Nov'),
+    "countdown": T('in 2d 6h 19m'),
     "countdown_short": "2d",
-    "city": "Las Vegas",
-    "country": "USA",
-    "circuit": "Las Vegas Strip Street Circuit",
-    "live": "LIVE, or LIVE · 12:34 left",
-    "flag": "Track flag while live",
-    "leader": "Leader while live",
+    "city": T('Las Vegas'),
+    "country": T('USA'),
+    "circuit": T('Las Vegas Strip Street Circuit'),
+    "live": T('LIVE, or LIVE · 12:34 left'),
+    "flag": T('Track flag while live'),
+    "leader": T('Leader while live'),
 }
 
 # (label, top, bottom, live top, live bottom)
 PRESETS = [
     ("Round, race and session", "{round} · {race} · {session}", "{time} · {countdown}",
      "{round} · {race} · ● {session}", "{live}"),
-    ("Session and countdown", "{session} · {time}", "{countdown}", "● {session}", "{live}"),
-    ("Race and countdown", "{round} · {race}", "{session} {countdown}", "● {session} {race}", "{live}"),
-    ("Compact (one line)", "{session} {countdown_short}", "", "● {session} LIVE", ""),
+    (T('Session and countdown'), "{session} · {time}", "{countdown}", "● {session}", "{live}"),
+    (T('Race and countdown'), "{round} · {race}", "{session} {countdown}", "● {session} {race}", "{live}"),
+    (T('Compact (one line)'), "{session} {countdown_short}", "", "● {session} LIVE", ""),
 ]
 
 DEFAULT_TOP, DEFAULT_BOTTOM, DEFAULT_LIVE_TOP, DEFAULT_LIVE_BOTTOM = PRESETS[0][1:]
@@ -75,7 +76,7 @@ def pill_fields(race, live: dict | None, settings, now: int, zone=None) -> tuple
     """Every template token's value, and whether a session is running. Pure."""
     f = {k: "" for k in TOKENS}
     if race is None:
-        f.update(race="F1", session="F1", countdown="No upcoming race", countdown_short="–")
+        f.update(race="F1", session="F1", countdown=T('No upcoming race'), countdown_short="–")
         return f, False
     f.update(round=f"R{race.round}", race=short_race(race), race_full=race.name, city=race.locality,
              country=race.country, circuit=race.circuit_name)
@@ -90,7 +91,7 @@ def pill_fields(race, live: dict | None, settings, now: int, zone=None) -> tuple
             name = f"{'SQ' if cur.id == 'sprint_quali' else 'Q'}{part}"
         f.update(session=name, session_full=SESSION_NAMES.get(cur.id, cur.id),
                  time=fmt_datetime(cur.ts, zone, settings.time_format == "12h"), live="LIVE",
-                 countdown="live now", countdown_short="LIVE")
+                 countdown=T('live now'), countdown_short="LIVE")
         if live_active(live, sessions, now, settings.debug_force_tabs):
             clock = live.get("clock")
             if isinstance(clock, dict):
@@ -98,11 +99,14 @@ def pill_fields(race, live: dict | None, settings, now: int, zone=None) -> tuple
                 f["live"] = f"LIVE · {fmt_clock(left)} left"
             f["flag"] = friendly_flag(live.get("flag"))
             rows = live.get("rows") or []
-            f["leader"] = rows[0].get("code", "") if rows else ""
+            # Spoiler-free: no leader unless results were revealed after this session started.
+            hidden = getattr(settings, "spoiler_free", False) and \
+                float(getattr(settings, "spoiler_revealed_at", 0) or 0) < cur.ts
+            f["leader"] = rows[0].get("code", "") if rows and not hidden else ""
         return f, True
     nxt = next_session(sessions, now)
     if nxt is None:
-        f.update(session="—", countdown="Weekend over", countdown_short="done")
+        f.update(session="—", countdown=T('Weekend over'), countdown_short=T('done'))
         return f, False
     dt = to_local(nxt.ts, zone)
     f.update(session=SHORT.get(nxt.id, nxt.id), session_full=SESSION_NAMES.get(nxt.id, nxt.id),
@@ -136,7 +140,7 @@ def pill_state(race, live, settings, now: int, zone=None) -> tuple[str, str, boo
     """(top line, bottom line, live?) after applying the user's templates. Pure."""
     fields, is_live = pill_fields(race, live, settings, now, zone)
     if race is None:
-        return "F1", "No upcoming race", False
+        return "F1", T('No upcoming race'), False
     if is_live:
         top, bottom = settings.pill_live_top, settings.pill_live_bottom
     else:
@@ -292,7 +296,7 @@ class TaskbarPill(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
-        self.setAccessibleName("Formula 1 countdown")
+        self.setAccessibleName(T('Formula 1 countdown'))
         self.top, self.bottom, self.live = "F1", "", False
         self.style_ = PillStyle.resolve(settings, ctx.theme)
         self._hover = False
@@ -376,6 +380,7 @@ class TaskbarPill(QWidget):
             if host.create():
                 self._embed = host
                 self._embed_key = None
+                self.guard.setInterval(1000)       # cheap here; follows neighbours' width changes
                 self.raiser.stop()
                 self._fs_hidden = False
                 if self.isVisible():
@@ -384,12 +389,14 @@ class TaskbarPill(QWidget):
                 self._embed_failed = True          # don't retry every 2 s; floating mode instead
         elif not want and self._embed is not None:
             self._drop_embed()
+            self.guard.setInterval(2000)
             if self.settings.taskbar_pill and self.guard.isActive():
                 self.show()
                 self.raiser.start()
 
     def _drop_embed(self) -> None:
         if self._embed is not None:
+            winshell.release_task_buttons(self._embed.bar, winshell._rect(self._embed.hwnd))
             self._embed.destroy()
             self._embed = None
         QToolTip.hideText()
@@ -424,7 +431,20 @@ class TaskbarPill(QWidget):
         paint_pill(p, QRectF(0, 0, g.width(), g.height()), self.style_, self.top, self.bottom, self.live,
                    self._hover, self._max_px(), self.settings.pill_autofit, self._pad())
         p.end()
-        host.show_image(img, round(sg.x() + (g.x() - sg.x()) * dpr), round(sg.y() + (g.y() - sg.y()) * dpr))
+        x, y = round(sg.x() + (g.x() - sg.x()) * dpr), round(sg.y() + (g.y() - sg.y()) * dpr)
+        host.show_image(img, x, y)
+        self._fit_buttons(x)
+
+    def _fit_buttons(self, x: int | None = None) -> None:
+        """Classic taskbar: keep the app buttons from sliding under us (Windows 11 is left alone)."""
+        if self._embed is None:
+            return
+        if x is None:
+            r = winshell._rect(self._embed.hwnd)
+            if not r:
+                return
+            x = r[0]
+        winshell.fit_task_buttons(self._embed.bar, x - 2)
 
     def _e_press(self, x: int) -> None:
         QToolTip.hideText()
@@ -468,8 +488,8 @@ class TaskbarPill(QWidget):
         if force or state != (self.top, self.bottom, self.live):
             self.top, self.bottom, self.live = state
             race = store.race
-            self.setToolTip((f"{race.name}\n" if race else "") + f"{self.top}\n{self.bottom}".strip()
-                            + "\n\nClick: panel · Drag: move · Drag left edge: resize · Right-click: menu")
+            self.setToolTip((T('{name}\n', name=race.name) if race else "") + f"{self.top}\n{self.bottom}".strip()
+                            + T('\n\nClick: panel · Drag: move · Drag left edge: resize · Right-click: menu'))
             if self.settings.pill_width <= 0:
                 self.place()
             self._refresh()
@@ -489,7 +509,9 @@ class TaskbarPill(QWidget):
                              round((r[2] - r[0]) / dpr), round((r[3] - r[1]) / dpr))
 
             bar = log(rects["bar"])
-            tray = log(rects["tray"]) if rects.get("tray") else None
+            # "anchor" = the tray plus other apps' widgets packed beside it: we go next to them.
+            edge = (rects.get("anchor") if getattr(self.settings, "pill_auto_dock", True) else None)                 or rects.get("tray")
+            tray = log(edge) if edge else None
             if tray is None or not tray.isValid():
                 icon = self.tray_rect_fn()
                 tray = icon if icon.isValid() else QRect(bar.right() - 200, bar.top(), 200, bar.height())
@@ -525,7 +547,8 @@ class TaskbarPill(QWidget):
         if vertical:
             h = s.pill_height if s.pill_height > 0 else 40
             w = max(40, bar.width() - 6)
-            self.setGeometry(bar.left() + 3, tray.top() - h - 6 - s.taskbar_pill_offset, w, h)
+            y = max(bar.top() + 2, min(bar.bottom() - h - 1, tray.top() - h - 6 - s.taskbar_pill_offset))
+            self.setGeometry(bar.left() + 3, y, w, h)
             self._render_embed()
             return
         if s.pill_height == -1:
@@ -536,7 +559,7 @@ class TaskbarPill(QWidget):
             h = max(20, min(44, bar.height() - 6))
         w = s.pill_width if s.pill_width > 0 else self._auto_width(h)
         w = max(40, min(w, bar.width() // 2))
-        x = max(bar.left() + 2, tray.left() - w - 6 - s.taskbar_pill_offset)
+        x = max(bar.left() + 2, min(bar.right() - w - 1, tray.left() - w - 6 - s.taskbar_pill_offset))
         self.setGeometry(x, bar.top() + (bar.height() - h) // 2, w, h)
         self._render_embed()
 
@@ -564,6 +587,7 @@ class TaskbarPill(QWidget):
                     return
                 self._embed_key = None
             self.place()
+            self._fit_buttons()                    # Explorer re-widens them on its own layout passes
             self._embed.keep_on_top()
             return
         covered = winshell.foreground_is_fullscreen() or not self._taskbar_under_me()
@@ -632,7 +656,7 @@ class TaskbarPill(QWidget):
             self.settings.pill_width = max(40, min(900, self._press_width - d.x()))
         else:
             delta = -d.y() if vertical else -d.x()
-            self.settings.taskbar_pill_offset = max(0, min(1600, self._press_offset + delta))
+            self.settings.taskbar_pill_offset = max(-400, min(1600, self._press_offset + delta))
         self.place()
 
     def _release_at(self, button, gpos: QPoint) -> None:

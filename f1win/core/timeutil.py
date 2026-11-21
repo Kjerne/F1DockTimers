@@ -5,6 +5,8 @@ user's zone happens only at display time, through ``zone_for``.
 """
 from __future__ import annotations
 
+from ..i18n import T
+
 import re
 import time
 from datetime import datetime, timedelta, timezone, tzinfo
@@ -21,8 +23,9 @@ _ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})")
 _OFFSET_TAIL = re.compile(r"([+-])(\d{2}):(\d{2})$")
 _GMT = re.compile(r"^([+-]?)(\d{2}):(\d{2})")
 
-WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+WEEKDAYS = [T("Mon"), T("Tue"), T("Wed"), T("Thu"), T("Fri"), T("Sat"), T("Sun")]
+MONTHS = [T("Jan"), T("Feb"), T("Mar"), T("Apr"), T("May"), T("Jun"), T("Jul"), T("Aug"), T("Sep"), T("Oct"),
+          T("Nov"), T("Dec")]
 
 
 def now_sec() -> int:
@@ -88,29 +91,29 @@ def _split(seconds: float) -> tuple[int, int, int]:
 def fmt_short(seconds: float) -> str:
     """Bar pill form: 4d, 3h, 12m, <1m, live."""
     if seconds <= 0:
-        return "live"
+        return T("live")
     d, h, m = _split(seconds)
     if d > 0:
-        return f"{d}d"
+        return T("{days}d", days=d)
     if h > 0:
-        return f"{h}h"
+        return T("{hours}h", hours=h)
     if m > 0:
-        return f"{m}m"
-    return "<1m"
+        return T("{minutes}m", minutes=m)
+    return T("<1m")
 
 
 def fmt_long(seconds: float) -> str:
     """"in 4d 21h 36m", or "live now" once the time has come."""
     if seconds <= 0:
-        return "live now"
+        return T("live now")
     d, h, m = _split(seconds)
     parts = []
     if d > 0:
-        parts.append(f"{d}d")
+        parts.append(T("{days}d", days=d))
     if h > 0:
-        parts.append(f"{h}h")
-    parts.append(f"{m}m")
-    return "in " + " ".join(parts)
+        parts.append(T("{hours}h", hours=h))
+    parts.append(T("{minutes}m", minutes=m))
+    return T("in {time}", time=" ".join(parts))
 
 
 def fmt_clock(seconds: float) -> str:
@@ -186,7 +189,7 @@ def fmt_date(ts: int, zone: tzinfo | None) -> str:
 def fmt_stamp(ts: float, zone: tzinfo | None, twelve: bool) -> str:
     """Short "updated" stamp: "18:42" today, else "17 Nov 18:42"."""
     if not ts:
-        return "never"
+        return T("never")
     dt = to_local(int(ts), zone)
     now = to_local(now_sec(), zone)
     if twelve:

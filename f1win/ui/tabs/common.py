@@ -10,6 +10,7 @@ from ...core.teams import team_color
 from ...core.timeutil import zone_for
 from ..theme import Theme
 from ..widgets import Chip, Row, Text, Wrap
+from ...i18n import T
 
 RIGHT = Qt.AlignmentFlag.AlignRight
 LEFT = Qt.AlignmentFlag.AlignLeft
@@ -124,11 +125,11 @@ class Tab(QWidget):
         else:
             r.cell(Text(primary, self.t, 13, True, color), None, 1)
         wins = int(row.get("wins") or 0)
-        w = Text(f"{wins}W" if wins else "", self.t, 12, False, self.t.muted, RIGHT)
-        w.setToolTip(f"{wins} win{'s' if wins != 1 else ''}")
+        w = Text(T('{wins}W', wins=wins) if wins else "", self.t, 12, False, self.t.muted, RIGHT)
+        w.setToolTip((T('1 win') if wins == 1 else T('{wins} wins', wins=wins)))
         r.cell(w, 30)
         gap = int(row.get("gap") or 0)
-        r.cell(Text(f"-{gap}" if gap > 0 else "", self.t, 12, False, self.t.muted, RIGHT), 40)
+        r.cell(Text(T('-{gap}', gap=gap) if gap > 0 else "", self.t, 12, False, self.t.muted, RIGHT), 40)
         r.cell(Text(row.get("pts", ""), self.t, 13, True, self.t.on_surface, RIGHT), 44)
         self.lay.addWidget(r)
         return r
@@ -136,7 +137,7 @@ class Tab(QWidget):
 
 def empty_message(dataset: dict, none_text: str) -> str:
     if dataset.get("failed"):
-        return "Couldn't reach F1 data right now. Retrying automatically."
+        return T("Couldn't reach F1 data right now. Retrying automatically.")
     if dataset.get("loaded"):
         return none_text
     return "Loading…"

@@ -34,6 +34,7 @@ from .ui.tabs.common import Ctx
 from .ui.theme import Theme
 from .ui.widgets import app_icon
 from .version import APP_TITLE, VERSION
+from .i18n import T
 
 log = logging.getLogger("f1win")
 
@@ -168,14 +169,14 @@ class F1App:
             return
         for panel in self._panels():
             panel.set_update(v)
-        self.act_update.setText(f"Install update {v}…")
+        self.act_update.setText(T('Install update {version}…', version=v))
         self.act_update.setVisible(True)
         if self.settings.update_notified != v:
             self.settings.update_notified = v
             self.settings.save()
             self._toast_is_update = True
-            self.tray.showMessage(f"{APP_TITLE} {v} is available",
-                                  "Click here, or use \"Install update\" in the tray menu.",
+            self.tray.showMessage(T('{app_title} {version} is available', app_title=APP_TITLE, version=v),
+                                  T('Click here, or use "Install update" in the tray menu.'),
                                   app_icon(self.theme.accent), 15000)
 
     def _toast_clicked(self) -> None:
@@ -198,17 +199,17 @@ class F1App:
             self.updater.check(manual=True)
             return
         box = QMessageBox()
-        box.setWindowTitle(f"{APP_TITLE} update")
+        box.setWindowTitle(T('{app_title} update', app_title=APP_TITLE))
         box.setWindowIcon(app_icon(self.theme.accent))
-        box.setText(f"<b>Version {rel['version']}</b> is available. You have {VERSION}.")
+        box.setText(T('<b>Version {version}</b> is available. You have {current}.', version=rel['version'], current=VERSION))
         notes = rel["notes"].strip()
         box.setInformativeText((notes[:600] + ("…" if len(notes) > 600 else "")) if notes else "")
         can = self.updater.can_install()
-        install = box.addButton("Install and restart" if can else "Open download page",
+        install = box.addButton(T('Install and restart') if can else T('Open download page'),
                                 QMessageBox.ButtonRole.AcceptRole)
-        page = box.addButton("Release page", QMessageBox.ButtonRole.HelpRole) if can else None
-        skip = box.addButton("Skip this version", QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        page = box.addButton(T('Release page'), QMessageBox.ButtonRole.HelpRole) if can else None
+        skip = box.addButton(T('Skip this version'), QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(T('Later'), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(install)
         self._bring_to_front(box)
         box.exec()
@@ -229,8 +230,8 @@ class F1App:
 
     def _start_install(self) -> None:
         from PySide6.QtWidgets import QProgressDialog
-        dlg = QProgressDialog("Downloading the update…", "Cancel", 0, 100)
-        dlg.setWindowTitle(f"{APP_TITLE} update")
+        dlg = QProgressDialog(T('Downloading the update…'), T('Cancel'), 0, 100)
+        dlg.setWindowTitle(T('{app_title} update', app_title=APP_TITLE))
         dlg.setMinimumDuration(0)
         dlg.setAutoClose(False)
         dlg.setAutoReset(False)
@@ -246,7 +247,7 @@ class F1App:
         from PySide6.QtCore import QUrl
         from PySide6.QtWidgets import QMessageBox
         log.warning("update failed: %s", message)
-        QMessageBox.warning(None, f"{APP_TITLE} update", message + "\n\nYou can download it from the release page.")
+        QMessageBox.warning(None, T('{app_title} update', app_title=APP_TITLE), message + T('\n\nYou can download it from the release page.'))
         if self.updater.latest:
             QDesktopServices.openUrl(QUrl(self.updater.latest["url"] or RELEASES_PAGE))
 
@@ -257,38 +258,38 @@ class F1App:
 
     def _build_menu(self) -> None:
         m = QMenu()
-        m.addAction("Open Formula 1 panel", self.open_panel)
-        m.addAction("Refresh data", lambda: self.poller.refresh_all(force=True))
+        m.addAction(T('Open Formula 1 panel'), self.open_panel)
+        m.addAction(T('Refresh data'), lambda: self.poller.refresh_all(force=True))
         m.addSeparator()
-        self.act_widget = QAction("Desktop widget", m, checkable=True)
+        self.act_widget = QAction(T('Desktop widget'), m, checkable=True)
         self.act_widget.setChecked(self.settings.widget_enabled)
         self.act_widget.toggled.connect(self.show_widget)
         m.addAction(self.act_widget)
-        self.act_pill = QAction("Taskbar countdown", m, checkable=True)
+        self.act_pill = QAction(T('Taskbar countdown'), m, checkable=True)
         self.act_pill.setChecked(self.settings.taskbar_pill)
         self.act_pill.toggled.connect(self.show_pill)
         m.addAction(self.act_pill)
-        self.act_click = QAction("Widget click-through", m, checkable=True)
+        self.act_click = QAction(T('Widget click-through'), m, checkable=True)
         self.act_click.setChecked(self.settings.widget_click_through)
         self.act_click.toggled.connect(self._set_click_through)
         m.addAction(self.act_click)
-        self.act_top = QAction("Widget always on top", m, checkable=True)
+        self.act_top = QAction(T('Widget always on top'), m, checkable=True)
         self.act_top.setChecked(self.settings.widget_always_on_top)
         self.act_top.toggled.connect(self._set_on_top)
         m.addAction(self.act_top)
         m.addSeparator()
-        self.act_update = QAction("Install update…", m)
+        self.act_update = QAction(T('Install update…'), m)
         self.act_update.triggered.connect(self.prompt_update)
         self.act_update.setVisible(False)
         m.addAction(self.act_update)
-        m.addAction("Check for updates", lambda: self.updater.check(manual=True))
-        m.addAction("Settings…", self.open_settings)
-        self.act_start = QAction("Start with Windows", m, checkable=True)
+        m.addAction(T('Check for updates'), lambda: self.updater.check(manual=True))
+        m.addAction(T('Settings…'), self.open_settings)
+        self.act_start = QAction(T('Start with Windows'), m, checkable=True)
         self.act_start.setChecked(autostart.is_enabled())
         self.act_start.toggled.connect(self._set_autostart)
         m.addAction(self.act_start)
         m.addSeparator()
-        m.addAction("Exit", self.quit)
+        m.addAction(T('Exit'), self.quit)
         self.menu = m
         self.tray.setContextMenu(m)
 
@@ -409,7 +410,7 @@ class F1App:
         elif act == "toggle_click":
             self._set_click_through(not s.widget_click_through)
             if s.widget_click_through:
-                self.tray.showMessage(APP_TITLE, "Widget is click-through. Turn it off from the tray icon menu.",
+                self.tray.showMessage(APP_TITLE, T('Widget is click-through. Turn it off from the tray icon menu.'),
                                       app_icon(self.theme.accent), 6000)
 
     def _set_click_through(self, on: bool) -> None:
@@ -427,7 +428,7 @@ class F1App:
         self._sync_menu()
 
     def _set_autostart(self, on: bool) -> None:
-        autostart.set_enabled(on)
+        autostart.set_enabled(on, interactive=True)
         self.settings.start_with_windows = autostart.is_enabled()
         self.settings.save()
         self._sync_menu()
@@ -480,7 +481,7 @@ class F1App:
     def apply_settings(self) -> None:
         s = self.settings
         if autostart.is_enabled() != s.start_with_windows:
-            autostart.set_enabled(s.start_with_windows)
+            autostart.set_enabled(s.start_with_windows, interactive=True)
         self.theme = Theme.from_settings(s)
         self.tray.setIcon(app_icon(self.theme.accent, self._live_icon))
         for panel in [self.popup.panel] + ([self.widget.panel] if self.widget else []):
@@ -510,6 +511,8 @@ class F1App:
     def quit(self) -> None:
         log.info("exiting")
         self.poller.stop()
+        if self.pill is not None:
+            self.pill.stop()          # embedded: leave the taskbar as we found it
         self.settings.save()
         self.tray.hide()
         self.qapp.quit()

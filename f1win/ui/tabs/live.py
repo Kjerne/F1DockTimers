@@ -9,16 +9,15 @@ from ...core.teams import friendly_flag
 from ...core.timeutil import fmt_clock, fmt_datetime, now_sec
 from ..widgets import Row, Text, Wrap
 from .common import RIGHT, Tab
+from ...i18n import T
 
 MESSAGES = {
     "auth": credentials_hint.AUTH,
-    "login": "OpenF1 rejected the stored username and password. Check them in Settings › Formula 1.",
-    "token": "OpenF1 refused the access token. A new one is requested automatically.",
-    "rate": "The live feed is rate limited; it will retry shortly.",
-    "net": "The live feed could not be reached; retrying.",
-    "free": ("Live timing during a session needs the OpenF1 Sponsor plan (Settings › Live data). "
-             "On the free plan the full classification appears below about 20–30 minutes after "
-             "the session ends."),
+    "login": T('OpenF1 rejected the stored username and password. Check them in Settings › Formula 1.'),
+    "token": T('OpenF1 refused the access token. A new one is requested automatically.'),
+    "rate": T('The live feed is rate limited; it will retry shortly.'),
+    "net": T('The live feed could not be reached; retrying.'),
+    "free": (T('Live timing during a session needs the OpenF1 Sponsor plan (Settings › Live data). On the free plan the full classification appears below about 20–30 minutes after the session ends.')),
 }
 
 
@@ -35,21 +34,20 @@ class LiveTab(Tab):
         sessions = race.sessions if race else []
         live = ctx.store.get("live")
         if not live_active(live, sessions, now, ctx.settings.debug_force_tabs):
-            self.header("LIVE TIMING")
+            self.header(T('LIVE TIMING'))
             problem = live.get("error") or ""
             if race is not None and near_session(sessions, now) and problem:
-                self.lay.addWidget(Wrap("A session is running, but live timing is not available.", t, 13, t.on_surface))
+                self.lay.addWidget(Wrap(T('A session is running, but live timing is not available.'), t, 13, t.on_surface))
             else:
-                self.lay.addWidget(Wrap("No session running right now.", t, 13, t.on_surface))
-                self.hint("Live positions and track flags appear here automatically during "
-                          "practice, qualifying and the race.")
+                self.lay.addWidget(Wrap(T('No session running right now.'), t, 13, t.on_surface))
+                self.hint(T('Live positions and track flags appear here automatically during practice, qualifying and the race.'))
             if problem in MESSAGES:
                 self.hint(MESSAGES[problem])
             elif ctx.settings.live_source == "openf1" and race is not None and near_session(sessions, now):
                 self.hint(MESSAGES["free" if ctx.settings.openf1_plan == "free" else "auth"])
             nxt = next_session(sessions, now) if race else None
             if nxt is not None:
-                self.lay.addWidget(Text(f"Next: {nxt.name} · {fmt_datetime(nxt.ts, ctx.zone, ctx.twelve)}",
+                self.lay.addWidget(Text(T('Next: {name} · {fmt_datetime}', name=nxt.name, fmt_datetime=fmt_datetime(nxt.ts, ctx.zone, ctx.twelve)),
                                         t, 12, True, t.accent))
             self.last_session()
             self.finish()
@@ -100,7 +98,7 @@ class LiveTab(Tab):
                 team = f"{team}  ·  PIT"
             r.cell(Text(team, t, 13, False, t.muted), None, 1)
             if row.get("pits") is not None and session and not qualifying:
-                r.cell(Text(f"{row['pits']} pit", t, 12, False, t.muted, RIGHT), 44)
+                r.cell(Text(T('{pits} pit', pits=row['pits']), t, 12, False, t.muted, RIGHT), 44)
             if row.get("best") or row.get("gap"):
                 r.cell(Text(row.get("best", ""), t, 13, False, t.muted if dimmed else t.on_surface, RIGHT), 80)
                 r.cell(Text(row.get("gap", ""), t, 12, False, t.error if state == "danger" else t.muted, RIGHT), 60)
@@ -120,7 +118,7 @@ class LiveTab(Tab):
         where = sess.get("location") or sess.get("circuit") or ""
         self.header(f"LAST SESSION · {where.upper()} · {str(sess.get('name', '')).upper()}".replace(" ·  · ", " · "))
         when = fmt_datetime(sess["start"], ctx.zone, ctx.twelve, long=True) if sess.get("start") else ""
-        self.hint(f"Final classification · {when} · OpenF1" if when else "Final classification · OpenF1")
+        self.hint(T('Final classification · {when} · OpenF1', when=when) if when else T('Final classification · OpenF1'))
         fd = (ctx.settings.favorite_driver or "").upper()
         for row in rows:
             r = Row(t)
@@ -134,10 +132,10 @@ class LiveTab(Tab):
                         RIGHT), 92)
             r.cell(Text(row.get("gap", ""), t, 12, False, t.muted, RIGHT), 78)
             if row.get("laps") is not None:
-                r.setToolTip(f"{row['laps']} laps" + (f" · {row['pts']} pts" if row.get("pts") else ""))
+                r.setToolTip(T('{laps} laps', laps=row['laps']) + (T(' · {pts} pts', pts=row['pts']) if row.get("pts") else ""))
             self.lay.addWidget(r)
 
     def tick(self, now: int) -> None:
         if self.clock_label is not None and self.clock:
             left = self.clock["remaining"] - ((now - self.clock["at"]) if self.clock.get("running") else 0)
-            self.clock_label.setText(f"{fmt_clock(left)} left")
+            self.clock_label.setText(T('{fmt_clock} left', fmt_clock=fmt_clock(left)))

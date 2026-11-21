@@ -1,0 +1,3 @@
+# English is the built-in language (the texts in the code). This file only makes it selectable.
+@code = en
+@name = English

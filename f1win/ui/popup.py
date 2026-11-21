@@ -9,6 +9,7 @@ from PySide6.QtGui import QCursor, QGuiApplication
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
 from .panel import F1Panel
+from ..i18n import T
 
 log = logging.getLogger(__name__)
 BASE_W, BASE_H = 500, 640
@@ -53,8 +54,8 @@ class TrayPopup(QWidget):
                          | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.NoDropShadowWindowHint)
         self.settings = settings
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowTitle("Formula 1")
-        self.setAccessibleName("Formula 1 panel")
+        self.setWindowTitle(T('Formula 1'))
+        self.setAccessibleName(T('Formula 1 panel'))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.panel = F1Panel(ctx, "popup", self)

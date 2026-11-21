@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QMenu, QScrollBar, QVBoxLayout, QWidget
 
 from .panel import F1Panel
 from .widgets import IconButton, PillButton, Row
+from ..i18n import T
 
 EDGE = 7
 MIN_W, MIN_H = 300, 260
@@ -33,8 +34,8 @@ class DesktopWidget(QWidget):
                          | Qt.WindowType.NoDropShadowWindowHint)
         self.settings = settings
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowTitle("Formula 1 widget")
-        self.setAccessibleName("Formula 1 desktop widget")
+        self.setWindowTitle(T('Formula 1 widget'))
+        self.setAccessibleName(T('Formula 1 desktop widget'))
         self.setMinimumSize(MIN_W, MIN_H)
         self.setMouseTracking(True)
         lay = QVBoxLayout(self)
@@ -164,20 +165,20 @@ class DesktopWidget(QWidget):
     def _menu(self, gpos) -> None:
         s = self.settings
         m = QMenu(self)
-        m.addAction("Refresh", lambda: self.action.emit("refresh"))
-        m.addAction("Open panel", lambda: self.action.emit("panel"))
+        m.addAction(T('Refresh'), lambda: self.action.emit("refresh"))
+        m.addAction(T('Open panel'), lambda: self.action.emit("panel"))
         m.addSeparator()
-        for label, attr, act in (("Lock position and size", "widget_locked", "toggle_lock"),
-                                 ("Always on top", "widget_always_on_top", "toggle_top"),
-                                 ("Click-through (turn off from the tray menu)", "widget_click_through", "toggle_click")):
+        for label, attr, act in ((T('Lock position and size'), "widget_locked", "toggle_lock"),
+                                 (T('Always on top'), "widget_always_on_top", "toggle_top"),
+                                 (T('Click-through (turn off from the tray menu)'), "widget_click_through", "toggle_click")):
             a = QAction(label, m)
             a.setCheckable(True)
             a.setChecked(getattr(s, attr))
             a.triggered.connect(lambda _c=False, act=act: self.action.emit(act))
             m.addAction(a)
         m.addSeparator()
-        m.addAction("Settings…", lambda: self.action.emit("settings"))
-        m.addAction("Hide widget", lambda: self.action.emit("hide"))
+        m.addAction(T('Settings…'), lambda: self.action.emit("settings"))
+        m.addAction(T('Hide widget'), lambda: self.action.emit("hide"))
         m.exec(gpos)
 
     def keyPressEvent(self, e) -> None:

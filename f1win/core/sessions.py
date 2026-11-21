@@ -4,15 +4,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .timeutil import parse_utc
+from ..i18n import T
 
 SESSION_NAMES = {
-    "fp1": "Practice 1",
-    "fp2": "Practice 2",
-    "fp3": "Practice 3",
-    "sprint_quali": "Sprint Quali",
-    "sprint": "Sprint",
-    "quali": "Qualifying",
-    "race": "Race",
+    "fp1": T('Practice 1'),
+    "fp2": T('Practice 2'),
+    "fp3": T('Practice 3'),
+    "sprint_quali": T('Sprint Quali'),
+    "sprint": T('Sprint'),
+    "quali": T('Qualifying'),
+    "race": T('Race'),
 }
 SESSION_IDS = list(SESSION_NAMES)
 
