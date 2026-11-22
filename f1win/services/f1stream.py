@@ -23,7 +23,8 @@ from ..version import USER_AGENT
 log = logging.getLogger(__name__)
 
 BASE = "https://livetiming.formula1.com/signalrcore"
-FEEDS = ["SessionInfo", "SessionData", "TimingData", "DriverList", "TrackStatus", "LapCount", "ExtrapolatedClock"]
+FEEDS = ["SessionInfo", "SessionData", "TimingData", "DriverList", "TrackStatus", "LapCount", "ExtrapolatedClock",
+         "WeatherData"]
 MAX_BUFFER = 4 * 1024 * 1024
 
 

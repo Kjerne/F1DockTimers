@@ -9,14 +9,19 @@ share one data cache.
 ## Screenshots
 
 <p>
-  <img src="docs/screenshots/panel-schedule.png" width="300" alt="Schedule tab: circuit, start lights, countdown and session times">
+  <img src="docs/screenshots/panel-schedule.png" width="300" alt="Schedule tab: circuit, start lights, countdown, session times and weather">
+  <img src="docs/screenshots/panel-weather.png" width="300" alt="Weather tab: race outlook hour by hour and every session's forecast or measured weather">
+  <img src="docs/screenshots/panel-grid.png" width="300" alt="Grid tab: official starting grid with penalties">
+</p>
+<p>
   <img src="docs/screenshots/panel-live.png" width="300" alt="Live tab: final classification of the last session">
+  <img src="docs/screenshots/panel-results.png" width="300" alt="Last race result">
   <img src="docs/screenshots/panel-drivers.png" width="300" alt="Driver standings">
 </p>
 <p>
-  <img src="docs/screenshots/panel-results.png" width="300" alt="Last race result">
   <img src="docs/screenshots/panel-constructors.png" width="300" alt="Constructor standings">
   <img src="docs/screenshots/settings-taskbar.png" width="300" alt="Taskbar countdown settings">
+  <img src="docs/screenshots/settings-f1.png" width="300" alt="Formula 1 settings: weather updates, spoiler-free mode, notifications">
 </p>
 
 The taskbar countdown in three styles:
@@ -104,6 +109,8 @@ F1DockTimers is in English. Want it in your language?
 ## Data and privacy
 
 * **Jolpica-F1:** schedule (every 6 h), standings and last result (every 3 h), qualifying. Requests are paced, retried 1, 2, 4 … 15 min after a failure, and the last good data is kept.
+* **Weather:** the forecast comes from [Open-Meteo](https://open-meteo.com/) (free, no account, CC BY 4.0) for the circuit's coordinates, hour by hour for every session, from about 16 days before the weekend. How often it updates is up to you (Settings › Formula 1 › Weather updates: Fast, Normal, Slow, Custom or Off). During a session the Weather tab also shows live air and track temperature, rain, humidity and wind from F1's timing feed (with the "F1 live stream" setting).
+* **Official grid:** after qualifying, the Grid tab also shows the official starting grid with penalties from OpenF1, checked again 60, 20 and 5 minutes before the race.
 * **F1 `SessionInfo.json`:** once a minute during a race weekend, so delayed sessions show the revised time with a `+30 min vs. published time` note. Manual corrections are under Settings › Formula 1.
 * **Live data** (Settings › Live data, one choice):
   * **OpenF1 Free** (default, no account; 3 requests/s and 30/min, enforced): the Live tab shows the final classification of each finished session (practice, qualifying with each driver's Q part, sprint, race) about 20 to 30 minutes after it ends. Nothing is sent to OpenF1 during sessions, because free users get no data then.

@@ -6,10 +6,12 @@ import time
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
-from ...core.sessions import current_session, next_session, session_ts
+from ...core import weather
+from ...core.sessions import DURATION_MIN, current_session, next_session, session_ts
 from ...core.timeutil import fmt_datetime, fmt_long, now_sec, utc_offset_label
-from ..widgets import LightsGantry, Row, Text, TrackView, Wrap
-from .common import Tab
+from ..widgets import LightsGantry, Row, Text, TrackView, Wrap, with_help
+from .common import RIGHT, Tab
+from .weather import RAIN_W, TEMP_W, measured_for, session_cells
 from ...i18n import T
 
 LIGHT_STEP_MS = 620
@@ -88,33 +90,57 @@ class ScheduleTab(Tab):
             top_l.addWidget(self.track)
         self.lay.addWidget(top)
         self.lay.addSpacing(t.px(10))
-        self.header(T('SESSIONS'))
-
         now = now_sec()
+        fc = ctx.store.get("weather")
+        forecast = fc if fc.get("round") == f"{race.season}-{race.round}" else None
+
+        # Table header, as on the Weather tab: SESSIONS (title) · START · SKY · TEMP · RAIN
+        measured = measured_for(ctx.store, race)
+        has_wx = bool(forecast) or bool(measured)
+        name_w = 116 if ctx.compact else 128
+        head = Row(t)
+        head.lay.setContentsMargins(t.px(4), 0, t.px(4), t.px(2))
+        head.cell(with_help(Text(T('SESSIONS'), t, 12, True, t.on_surface, tracking=0.4), t), name_w)
+        head.cell(Text(T('START'), t, 10, True, t.muted, tracking=0.3), 92)
+        tip = [T('Start: the start time in your time zone.')]
+        if has_wx:
+            head.cell(Text(T('SKY'), t, 10, True, t.muted, tracking=0.3), None, 1)
+            head.cell(Text(T('TEMP'), t, 10, True, t.muted, RIGHT, tracking=0.3), TEMP_W)
+            head.cell(Text(T('RAIN'), t, 10, True, t.muted, RIGHT, tracking=0.3), RAIN_W)
+            tip.append(T('Sky, temperature and the highest chance of rain during each session. Finished sessions '
+                         'show what F1 measured at the track (Rained / Dry, Wet / Dry). More on the Weather tab.'))
+        else:
+            head.cell(QWidget(), None, 1)
+        head.setToolTip("\n".join(tip))
+        self.lay.addWidget(head)
         self.session_rows = []
         for s in race.sessions:
             r = Row(t)
-            r.lay.setContentsMargins(t.px(4), t.px(3), t.px(4), t.px(3))
-            name_w = Text(s.name, t, 13)
-            r.cell(name_w, 116 if ctx.compact else 150)
-            when = Text(fmt_datetime(s.ts, ctx.zone, ctx.twelve), t, 13)
-            when.setToolTip(fmt_datetime(s.ts, ctx.zone, ctx.twelve, long=True) + "  " + utc_offset_label(s.ts, ctx.zone))
-            r.cell(when)
-            note = ""
-            if s.delay:
-                sign = "+" if s.delay > 0 else ""
-                note = f"{sign}{s.delay} min vs. published time"
-                if s.source == "manual":
-                    note += " (manual)"
-            r.cell(Text(note, t, 11, False, t.secondary), None, 1)
+            name_cell = Text(s.name, t, 13)
+            r.cell(name_cell, name_w)
+            delayed = bool(s.delay)
+            when = Text(fmt_datetime(s.ts, ctx.zone, ctx.twelve) + ("*" if delayed else ""), t, 13, False,
+                        t.secondary if delayed else None)
+            r.cell(when, 92)
+            tips = [fmt_datetime(s.ts, ctx.zone, ctx.twelve, long=True) + "  " + utc_offset_label(s.ts, ctx.zone)]
             if s.source == "feed":
-                r.setToolTip(T("Start time from F1's live timing (revised)"))
+                tips.append(T("Start time from F1's live timing (revised)"))
             elif s.source == "manual":
-                r.setToolTip(T('Start time corrected by hand in Settings'))
+                tips.append(T('Start time corrected by hand in Settings'))
             else:
-                r.setToolTip(T('Published schedule time'))
+                tips.append(T('Published schedule time'))
+            if delayed:
+                sign = "+" if s.delay > 0 else ""
+                tips.append(T("* {delay} min vs. published time", delay=f"{sign}{s.delay}"))
+            if has_wx:
+                wx_tip = session_cells(self, r, s, forecast, measured, now, 13)
+                if wx_tip:
+                    tips.append(wx_tip)
+            else:
+                r.cell(QWidget(), None, 1)
+            r.setToolTip("\n".join(tips))
             self.lay.addWidget(r)
-            self.session_rows.append((s, name_w, when))
+            self.session_rows.append((s, name_cell, when))
         self.finish()
         self.tick(now)
 

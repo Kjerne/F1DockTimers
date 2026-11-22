@@ -181,6 +181,14 @@ def fmt_datetime(ts: int, zone: tzinfo | None, twelve: bool, long: bool = False)
     return f"{wd} {clock}"
 
 
+def fmt_clock_time(ts: int, zone: tzinfo | None, twelve: bool) -> str:
+    """"14:00" / "2:00 PM"."""
+    dt = to_local(ts, zone)
+    if twelve:
+        return f"{dt.hour % 12 or 12}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
+    return f"{dt.hour:02d}:{dt.minute:02d}"
+
+
 def fmt_date(ts: int, zone: tzinfo | None) -> str:
     dt = to_local(ts, zone)
     return f"{WEEKDAYS[dt.weekday()]} {dt.day} {MONTHS[dt.month - 1]} {dt.year}"

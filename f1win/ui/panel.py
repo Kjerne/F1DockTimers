@@ -15,6 +15,7 @@ from ..core.timeutil import fmt_stamp, now_sec
 from .tabs.common import Ctx
 from .tabs.live import LiveTab
 from .tabs.schedule import ScheduleTab
+from .tabs.weather import WeatherTab
 from .tabs.tables import ConstructorsTab, DriversTab, GridTab, ResultsTab, SpoilerTab
 from .widgets import ClickText, Divider, FlagGlyph, IconButton, PillButton, Text
 from ..i18n import T
@@ -33,9 +34,10 @@ REFRESH_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill
                'stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>'
                '<path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>')
 
-TAB_LABELS = {"schedule": T('Schedule'), "grid": T('Grid'), "live": T('Live'), "results": T('Last'),
+TAB_LABELS = {"schedule": T('Schedule'), "weather": T('Weather'), "grid": T('Grid'), "live": T('Live'), "results": T('Last'),
               "drivers": T('Drivers'), "constructors": T('Teams')}
-RELEVANT = {"schedule": {"race", "status"}, "grid": {"grid", "race"}, "live": {"live", "race"},
+RELEVANT = {"schedule": {"race", "status", "weather", "measured_weather"},
+            "weather": {"weather", "race", "live", "measured_weather"}, "grid": {"grid", "grid_official", "race"}, "live": {"live", "race"},
             "results": {"results"}, "drivers": {"drivers"}, "constructors": {"constructors"}}
 
 
@@ -43,12 +45,12 @@ def tab_list(store, settings, now: int) -> list[tuple[str, str]]:
     race = store.race
     sessions = race.sessions if race else []
     force = settings.debug_force_tabs
-    tabs = [("schedule", "Schedule")]
+    tabs = [("schedule", T("Schedule")), ("weather", T("Weather"))]
     if (race is not None and grid_applicable(sessions, now)) or force:
-        tabs.append(("grid", "Grid"))
+        tabs.append(("grid", T("Grid")))
     is_live = live_active(store.get("live"), sessions, now, force)
-    tabs.append(("live", "● Live" if is_live else "Live"))
-    tabs += [("results", "Last"), ("drivers", "Drivers"), ("constructors", "Teams")]
+    tabs.append(("live", T("● Live") if is_live else T("Live")))
+    tabs += [("results", T("Last")), ("drivers", T("Drivers")), ("constructors", T("Teams"))]
     return tabs
 
 
@@ -251,7 +253,7 @@ class F1Panel(QWidget):
         self._refresh_tabbar(now)
         bar = self.scroll.verticalScrollBar()
         keep = 0 if reset_scroll else bar.value()
-        cls = {"schedule": ScheduleTab, "grid": GridTab, "live": LiveTab, "results": ResultsTab,
+        cls = {"schedule": ScheduleTab, "weather": WeatherTab, "grid": GridTab, "live": LiveTab, "results": ResultsTab,
                "drivers": DriversTab, "constructors": ConstructorsTab}[self.view]
         self.ctx.compact = self.width() and self.width() < self.ctx.theme.px(400)
         if self.view in SPOILER_VIEWS and spoilers_hidden(self.ctx.store, self.ctx.settings, now):

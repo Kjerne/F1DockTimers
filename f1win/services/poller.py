@@ -12,10 +12,10 @@ from urllib.parse import quote
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from ..core import parsers
+from ..core import parsers, weather
 from ..core.sessions import (DURATION_MIN, effective_sessions, grid_applicable, near_session, session_ts,
                              weekend_window)
-from ..core.timeutil import now_sec
+from ..core.timeutil import now_sec, parse_iso
 from . import credentials
 from .http import HttpClient
 from .store import DataStore, empty
@@ -30,6 +30,7 @@ F1_TIMING = "https://livetiming.formula1.com/static/"
 LIVE_EVERY_S = 15            # OpenF1 allows 30 requests a minute; 4 requests per poll
 SESSION_INFO_EVERY_S = 60
 MIN_REFRESH_GAP_S = 5
+WEATHER_EVERY_S = 2 * 3600     # forecast refresh (Open-Meteo updates hourly)
 RESULT_RETRY_S = 600         # session results not published yet: look again in 10 min
 RESULT_REFRESH_S = 6 * 3600
 WAKE_JUMP_S = 90             # wall clock moved this much more than the monotonic clock
@@ -48,7 +49,8 @@ class Poller(QObject):
         self.store = store
         self.settings = settings
         self.http = http or HttpClient(self)
-        self.due = {"schedule": 0.0, "drivers": 0.0, "constructors": 0.0, "results": 0.0}
+        self.due = {"schedule": 0.0, "drivers": 0.0, "constructors": 0.0, "results": 0.0, "weather": 0.0,
+                    "grid_official": 0.0, "measured": 0.0}
         self.busy: set[str] = set()
         self.attempts: dict[str, int] = {}
         self.generation = 0
@@ -172,6 +174,41 @@ class Poller(QObject):
                 fail(reason, status)
 
         self.http.get_json(url, on_ok, on_fail, headers)
+
+    # ── weather (Open-Meteo forecast for the circuit) ─────────────────────────
+
+    def load_weather(self, now: int) -> None:
+        """Hourly forecast for the race weekend, from 16 days before the first session until the
+        race is over. Open-Meteo needs no key; a few requests a day."""
+        if self.settings.weather_refresh == "off" and self.store.get("weather").get("times"):
+            return                                             # off: keep what we have, fetch nothing
+        race = self.store.race
+        if race is not None and race.lat is None and not getattr(self, "_coords_refetched", False):
+            self._coords_refetched = True                     # cached race from before 1.0.8: no coordinates
+            self.due["schedule"] = 0
+        if race is None or race.lat is None or race.lon is None or not race.sessions:
+            self.due["weather"] = time.monotonic() + 60       # the schedule may not be loaded yet
+            return
+        first, last = race.sessions[0].ts, race.sessions[-1].ts
+        if now > last + 4 * 3600 or first - now > weather.FORECAST_DAYS * 86400:
+            return                                             # weekend over, or too far ahead
+        key = round_key(race)
+
+        def ok(data):
+            parsed = weather.parse_open_meteo(data)
+            if parsed is None:
+                self.due["weather"] = time.monotonic() + 1800
+                return
+            self.store.set("weather", {"loaded": True, "failed": False, "round": key, **parsed})
+            self._dirty()
+            every = weather.refresh_seconds(race.sessions, now_sec(), DURATION_MIN, self.settings.weather_refresh,
+                                            self.settings.weather_custom)
+            self.due["weather"] = time.monotonic() + (every or 6 * 3600)
+
+        def fail(_reason, _status):
+            self.due["weather"] = time.monotonic() + 1800
+
+        self._get("weather", weather.forecast_url(race.lat, race.lon), ok, fail)
 
     # ── sessions ────────────────────────────────────────────────────────────
 
@@ -320,6 +357,88 @@ class Poller(QObject):
             self.store.set("grid", self._failed_state("grid"), success=False)
 
         self._get("grid", url, ok, fail, scoped=True)
+
+    def load_measured_weather(self, now: int) -> None:
+        """What the weather really was in each finished session (OpenF1 /weather, measured by F1 at the
+        track). One small request per session, once; free plan, after the session."""
+        race = self.store.race
+        if race is None or not race.sessions:
+            return
+        key = round_key(race)
+        done = [s for s in race.sessions if s.ts + (DURATION_MIN.get(s.id, 60) + 15) * 60 <= now]
+        if not done or now > race.sessions[-1].ts + 6 * 3600:
+            return
+        stored = self.store.get("measured_weather")
+        have = (stored.get("sessions") or {}) if stored.get("round") == key else {}
+        if all(s.id in have for s in done):
+            return
+
+        def got_sessions(arr):
+            if not isinstance(arr, list):
+                return
+            ours = {s.id: s.ts for s in done if s.id not in have}
+            for e in arr:
+                if not isinstance(e, dict) or not isinstance(e.get("session_key"), int):
+                    continue
+                sid = parsers.FEED_SESSIONS.get(str(e.get("session_name", "")))
+                start = parse_iso(e.get("date_start"))
+                if sid in ours and start and abs(start - ours[sid]) <= 3 * 3600:
+                    self._get(f"of_wx_{e['session_key']}", f"{OPENF1}weather?session_key={e['session_key']}",
+                              lambda data, sid=sid: got_weather(sid, data))
+
+        def got_weather(sid, data):
+            summary = parsers.summarise_openf1_weather(data)
+            if summary is None:
+                return
+            cur = self.store.get("measured_weather")
+            sessions = dict(cur.get("sessions") or {}) if cur.get("round") == key else {}
+            sessions[sid] = summary
+            self.store.set("measured_weather", {"loaded": True, "failed": False, "round": key, "sessions": sessions})
+            self._dirty()
+
+        self._get("of_wx_sessions", OPENF1 + "sessions?meeting_key=latest", got_sessions)
+
+    def load_official_grid(self, now: int) -> None:
+        """The official starting grid (after penalties) from OpenF1, which publishes it with the
+        qualifying session. Checked every 30 minutes after qualifying and again 60, 20 and 5
+        minutes before the race, when late penalties are known."""
+        race = self.store.race
+        q_ts, r_ts = session_ts(race.sessions, "quali") if race else None, session_ts(race.sessions, "race") if race else None
+        if not q_ts or not r_ts or not q_ts + 70 * 60 <= now <= r_ts + 15 * 60:
+            return
+        key = round_key(race)
+        mono = time.monotonic()
+        have = self.store.get("grid_official")
+        known = bool(have.get("rows")) and have.get("round") == key
+        nxt = mono + (3 * 3600 if known else 30 * 60)   # look often until it appears, then rarely
+        for before in (60, 20, 5):                      # last checks just before lights out
+            at = r_ts - before * 60
+            if now < at:
+                nxt = min(nxt, mono + (at - now))
+        self.due["grid_official"] = nxt
+
+        def got_session(arr):
+            sess = parsers.parse_openf1_session(arr)
+            if not sess or not sess.get("key") or abs((sess.get("start") or 0) - q_ts) > 3 * 3600:
+                return                                   # OpenF1's latest meeting is not this race yet
+            k = sess["key"]
+            holder = {}
+
+            def got_grid(arr2):
+                holder["grid"] = arr2
+                self._get("of_grid_drivers", f"{OPENF1}drivers?session_key={k}", got_drivers)
+
+            def got_drivers(arr3):
+                rows = parsers.parse_openf1_starting_grid(holder.get("grid"), parsers.parse_openf1_drivers(arr3),
+                                                          self.store.get("grid").get("rows") or [])
+                if rows:
+                    self.store.set("grid_official", {"loaded": True, "failed": False, "round": key,
+                                                     "session_key": k, "rows": rows})
+                    self._dirty()
+
+            self._get("of_grid", f"{OPENF1}starting_grid?session_key={k}", got_grid)
+
+        self._get("of_grid_session", OPENF1 + "sessions?meeting_key=latest&session_name=Qualifying", got_session)
 
     # ── live: OpenF1 ────────────────────────────────────────────────────────
 
@@ -526,6 +645,16 @@ class Poller(QObject):
             if mono >= self.due[name]:
                 self.due[name] = mono + standings_every
                 self._dataset(name, JOLPICA + url, parse)
+
+        if mono >= self.due["measured"]:
+            self.due["measured"] = mono + 20 * 60
+            self.load_measured_weather(now)
+        if mono >= self.due["grid_official"]:
+            self.due["grid_official"] = mono + 30 * 60
+            self.load_official_grid(now)
+        if mono >= self.due["weather"]:
+            self.due["weather"] = mono + WEATHER_EVERY_S
+            self.load_weather(now)
 
         race = self.store.race
         sessions = race.sessions if race else []

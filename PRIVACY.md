@@ -10,7 +10,8 @@ The app only sends plain HTTPS requests that download public Formula 1 data:
 | Service | What for | When |
 | --- | --- | --- |
 | `api.jolpi.ca` (Jolpica-F1) | Calendar, standings, results, qualifying | Every few hours |
-| `api.openf1.org` (OpenF1) | Session results; live timing on the Sponsor plan | After sessions; every 15 s near a session with Sponsor |
+| `api.openf1.org` (OpenF1) | Session results, the official starting grid; live timing on the Sponsor plan | After sessions and before the race; every 15 s near a session with Sponsor |
+| `api.open-meteo.com` (Open-Meteo) | Weather forecast for the circuit's location (the circuit's coordinates are sent, never yours) | From 16 days before a race weekend: every 10 min to 6 h, as set under Settings › Formula 1 › Weather updates (or never) |
 | `livetiming.formula1.com` | Revised session start times; the live stream only if you choose "OpenF1 Free + F1 live stream" | During race weekends |
 | `api.github.com`, `github.com` | Checks once a day whether a newer F1DockTimers exists; downloads it only when you click Install (turn off under Settings › General) | Daily / on request |
 | `en.wikipedia.org` | Opens in your browser only when you click a driver, team or race | On click |

@@ -100,3 +100,12 @@ def test_memory_trim_frees_working_set():
     before = memory.working_set_mb()
     assert memory.trim()
     assert memory.working_set_mb() < before
+
+
+def test_negative_position_only_without_docking(qapp, tmp_path):
+    """Docking plus a negative position would slide onto the neighbour, which then moves away, and so on."""
+    pill, s = make_pill(tmp_path, pill_embed=False, taskbar_pill_offset=-130)
+    s.pill_auto_dock = True
+    assert pill._offset() == 0
+    s.pill_auto_dock = False
+    assert pill._offset() == -130

@@ -7,7 +7,7 @@ invents data: missing fields become empty strings.
 from __future__ import annotations
 
 from .sanitize import bounded, hex_color, path, safe, safe_link
-from .sessions import Race, build_sessions
+from .sessions import Race, build_sessions, _coord
 from .timeutil import parse_iso, parse_local, parse_utc
 
 
@@ -60,6 +60,7 @@ def parse_race(r) -> Race | None:
         country=safe(loc.get("country"), 32),
         url=_link(r),
     )
+    race.lat, race.lon = _coord(loc.get("lat"), 90), _coord(loc.get("long"), 180)
     race.raw_sessions = build_sessions(r)
     race.sessions = list(race.raw_sessions)
     if not race.raw_sessions:
@@ -206,6 +207,56 @@ def parse_qualifying(data) -> dict:
         "season": safe(r0.get("season"), 8) if isinstance(r0, dict) else "",
         "rows": rows[:30],
     }
+
+
+def parse_openf1_starting_grid(arr, drivers: dict, provisional: list[dict]) -> list[dict]:
+    """OpenF1 /starting_grid (the official grid, penalties applied) -> Grid rows. Names, teams and
+    links come from the provisional (qualifying) rows; ``moved`` is the change from that order."""
+    by_code = {r.get("code"): r for r in provisional or []}
+    rows = []
+    for e in bounded(arr, 30):
+        if not isinstance(e, dict):
+            continue
+        k = _driver_key(e.get("driver_number"))
+        try:
+            pos = int(e.get("position"))
+        except (TypeError, ValueError):
+            continue
+        if not k or not 1 <= pos <= 30:
+            continue
+        info = drivers.get(k, {})
+        code = info.get("acr") or f"#{k}"
+        q = by_code.get(code, {})
+        try:
+            moved = pos - int(q.get("pos"))
+        except (TypeError, ValueError):
+            moved = 0
+        rows.append({"pos": str(pos), "code": code, "name": q.get("name", ""),
+                     "team": q.get("team") or info.get("team", ""), "team_id": q.get("team_id", ""),
+                     "color": info.get("color", ""), "url": q.get("url", ""),
+                     "detail": fmt_lap(e.get("lap_duration")), "moved": moved})
+    rows.sort(key=lambda r: int(r["pos"]))
+    return rows
+
+
+def summarise_openf1_weather(arr) -> dict | None:
+    """OpenF1 /weather for one session -> what it was like: air range, warmest track, rain or not."""
+    air, track, hum, wind, rain = [], [], [], [], False
+    for e in bounded(arr, 2000):
+        if not isinstance(e, dict):
+            continue
+        for key, out in (("air_temperature", air), ("track_temperature", track), ("humidity", hum),
+                         ("wind_speed", wind)):
+            v = e.get(key)
+            if isinstance(v, (int, float)) and -50 < v < 90:
+                out.append(float(v))
+        if e.get("rainfall") not in (0, None, False, "0"):
+            rain = True
+    if not air:
+        return None
+    return {"air_min": min(air), "air_max": max(air), "track_max": max(track) if track else None,
+            "track_min": min(track) if track else None, "humidity": sum(hum) / len(hum) if hum else None,
+            "wind_max": max(wind) * 3.6 if wind else None, "rain": rain, "samples": len(air)}
 
 
 def grid_from_results(results: dict) -> list[dict]:

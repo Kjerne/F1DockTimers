@@ -41,6 +41,8 @@ out.mkdir(parents=True, exist_ok=True)
 settings = Settings.load()
 settings.popup_opacity = 100
 settings.animations = False
+settings.spoiler_free = False            # show the real tabs in the README
+settings.grid_official = True
 store = DataStore()
 store.load_cache()
 theme = Theme.from_settings(settings)
@@ -51,9 +53,11 @@ def panel_shots():
     ctx = Ctx(store, settings, theme, tracks, lambda u: None)
     p = F1Panel(ctx, "popup")
     p.bg_opacity = 1.0
-    p.resize(500, 640)
+    p.resize(500, 690)
     p.show()
-    for tab in ("schedule", "live", "results", "drivers", "constructors"):
+    for tab in ("schedule", "weather", "grid", "live", "results", "drivers", "constructors"):
+        if tab not in p.valid_views(now_sec()):
+            continue                     # e.g. no grid outside a race weekend
         p.set_view(tab, animate=False)
         app.processEvents()
         p.grab().save(str(out / f"panel-{tab}.png"))
@@ -103,6 +107,9 @@ def settings_shot():
     tabs.setCurrentIndex(2)
     app.processEvents()
     d.grab().save(str(out / "settings-taskbar.png"))
+    tabs.setCurrentIndex(3)
+    app.processEvents()
+    d.grab().save(str(out / "settings-f1.png"))
     tabs.setCurrentIndex(4)
     app.processEvents()
     d.grab().save(str(out / "settings-live.png"))

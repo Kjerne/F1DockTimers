@@ -10,6 +10,7 @@ import re
 
 from .sanitize import hex_color, safe
 from .timeutil import now_sec, parse_iso
+from .weather import parse_live_weather
 
 RS = "\x1e"
 MAX_LINE_BYTES = 4 * 1024 * 1024
@@ -157,6 +158,7 @@ class FeedState:
             "session": {"name": _text(info.get("Name"), 24), "kind": kind, "part": part,
                         "status": _text(info.get("SessionStatus"), 16)},
             "clock": clock,
+            "weather": parse_live_weather(self.feeds.get("WeatherData")),
         }
 
 

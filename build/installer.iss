@@ -1,6 +1,6 @@
 ; Inno Setup 6 script. Per-user install, no admin rights needed.
 #ifndef AppVersion
-  #define AppVersion "1.0.7"
+  #define AppVersion "1.0.8"
 #endif
 
 [Setup]

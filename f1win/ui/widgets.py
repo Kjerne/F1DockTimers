@@ -1,7 +1,7 @@
 """Small painted building blocks recreating Noctalia's ui.* primitives."""
 from __future__ import annotations
 
-from PySide6.QtCore import QByteArray, QEasingCurve, QPointF, QRectF, QSize, Qt, QVariantAnimation, Signal
+from PySide6.QtCore import QByteArray, QEvent, QObject, QEasingCurve, QPointF, QRectF, QSize, Qt, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
@@ -420,3 +420,46 @@ def app_icon(accent: str = "#BCC2FF", live: bool = False) -> QIcon:
         p.end()
         icon.addPixmap(pm)
     return icon
+
+
+def with_help(label: QWidget, theme: Theme) -> QWidget:
+    """``label`` followed by a small muted "(?)", meaning: hover here for an explanation. The tooltip
+    itself goes on the row (texts let the mouse through to it)."""
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(theme.px(4))
+    lay.addWidget(label)
+    mark = Text("(?)", theme, 9, False, theme.muted)
+    lay.addWidget(mark)
+    lay.addStretch(1)
+    box.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+    return box
+
+
+class _TooltipWrapper(QObject):
+    """Plain-text tooltips don't wrap in Qt, so a long one becomes a single screen-wide line.
+    Re-flows every tooltip to about 70 characters per line when it is set (keeps its own line breaks)."""
+
+    WIDTH = 70
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.ToolTipChange and isinstance(obj, QWidget):
+            text = obj.toolTip()
+            if text and not text.lstrip().startswith("<") and any(len(x) > self.WIDTH for x in text.split("\n")):
+                import textwrap
+                wrapped = "\n".join(textwrap.fill(x, self.WIDTH) if len(x) > self.WIDTH else x
+                                    for x in text.split("\n"))
+                if wrapped != text:
+                    obj.setToolTip(wrapped)
+        return False
+
+
+_wrapper = None
+
+
+def wrap_tooltips(app) -> None:
+    global _wrapper
+    if _wrapper is None:
+        _wrapper = _TooltipWrapper()
+        app.installEventFilter(_wrapper)

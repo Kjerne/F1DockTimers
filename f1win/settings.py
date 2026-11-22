@@ -50,6 +50,10 @@ class Settings:
     time_format: str = "24h"               # 24h | 12h
     timezone: str = "auto"                 # auto | IANA name
     language: str = "auto"                 # auto (Windows language) | language code from lang/*.txt
+    units: str = "metric"                  # metric (°C, km/h) | imperial (°F, mph)
+    weather_refresh: str = "normal"        # fast | normal | slow | custom | off (forecast updates)
+    weather_custom: list = field(default_factory=lambda: [15, 60, 180])   # minutes: near, weekend, other
+    grid_official: bool = True             # Grid tab: official grid (after penalties) when known
     schedule_refresh_h: float = 6.0
     standings_refresh_h: float = 3.0
 
@@ -148,7 +152,12 @@ class Settings:
         if self.widget_double_click not in ("refresh", "panel", "settings", "none"):
             self.widget_double_click = "refresh"
         self.notify_lead_min = max(0, min(120, self.notify_lead_min))
-        self.taskbar_pill_offset = max(-400, min(1600, self.taskbar_pill_offset))   # negative: towards the tray
+        self.taskbar_pill_offset = max(-400, min(1600, self.taskbar_pill_offset))
+        try:                                   # custom weather timings: 5 min .. 24 h, sane even if hand-edited
+            near, weekend, other = (max(5, min(1440, int(x))) for x in list(self.weather_custom)[:3])
+            self.weather_custom = [near, weekend, other]
+        except (TypeError, ValueError):
+            self.weather_custom = [15, 60, 180]   # negative: towards the tray
         if self.pill_style not in ("noctalia", "taskbar", "custom"):
             self.pill_style = "noctalia"
         if self.pill_align not in ("left", "center"):

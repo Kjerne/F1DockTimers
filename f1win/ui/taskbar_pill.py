@@ -50,6 +50,11 @@ TOKENS = {
     "live": T('LIVE, or LIVE · 12:34 left'),
     "flag": T('Track flag while live'),
     "leader": T('Leader while live'),
+    "temp": T('Air temperature: live at the track, else the forecast, e.g. 18°'),
+    "rain": T('Chance of rain during the session, e.g. 20%'),
+    "sky": T('Forecast sky, e.g. Partly cloudy'),
+    "wx": T('Temperature and rain chance, e.g. 18° · 20%'),
+    "track_temp": T('Track temperature while live, e.g. 31°'),
 }
 
 # (label, top, bottom, live top, live bottom)
@@ -136,9 +141,41 @@ def render_template(tpl: str, fields: dict) -> str:
     return " ".join(text.split()).strip(" ·")
 
 
-def pill_state(race, live, settings, now: int, zone=None) -> tuple[str, str, bool]:
+WEATHER_TOKENS = ("{temp}", "{rain}", "{sky}", "{wx}", "{track_temp}")
+
+
+def weather_fields(race, live: dict | None, forecast: dict | None, settings, now: int) -> dict:
+    """{temp} {rain} {sky} {wx} {track_temp} for the current or next session. Pure."""
+    from ..core import weather as wx
+    from ..core.sessions import DURATION_MIN
+    out = {"temp": "", "rain": "", "sky": "", "wx": "", "track_temp": ""}
+    if race is None:
+        return out
+    units = getattr(settings, "units", "metric")
+    s = current_session(race.sessions, now) or next_session(race.sessions, now)
+    if s is not None and forecast and forecast.get("round") == f"{race.season}-{race.round}":
+        win = wx.forecast_window(forecast, s.ts, s.ts + DURATION_MIN.get(s.id, 60) * 60)
+        if win:
+            out.update(temp=wx.temp(win["temp"], units), rain=f"{round(win.get('rain_prob') or 0)}%",
+                       sky=wx.condition(win.get("code")), wx=wx.short(win, units))
+    lw = (live or {}).get("weather") if isinstance(live, dict) else None
+    if lw and current_session(race.sessions, now) is not None:
+        if lw.get("air") is not None:
+            out["temp"] = wx.temp(lw["air"], units)
+            out["wx"] = out["temp"] + (f" · {out['rain']}" if out["rain"] else "")
+        if lw.get("track") is not None:
+            out["track_temp"] = wx.temp(lw["track"], units)
+        if lw.get("rain"):
+            out["sky"] = T("Raining")
+    return out
+
+
+def pill_state(race, live, settings, now: int, zone=None, forecast: dict | None = None) -> tuple[str, str, bool]:
     """(top line, bottom line, live?) after applying the user's templates. Pure."""
     fields, is_live = pill_fields(race, live, settings, now, zone)
+    templates = (settings.pill_top, settings.pill_bottom, settings.pill_live_top, settings.pill_live_bottom)
+    if any(tok in tpl for tpl in templates for tok in WEATHER_TOKENS):   # only when the user shows weather
+        fields.update(weather_fields(race, live, forecast, settings, now))
     if race is None:
         return "F1", T('No upcoming race'), False
     if is_live:
@@ -311,7 +348,7 @@ class TaskbarPill(QWidget):
         self.guard.timeout.connect(self._guard)
         # Clicking the taskbar lifts it over us; re-raise quickly (cheap SetWindowPos only).
         self.raiser = QTimer(self)
-        self.raiser.setInterval(500)
+        self.raiser.setInterval(2000)           # safety net; taskbar clicks are caught by the hook
         self.raiser.timeout.connect(self._raise)
         self._fg_watch: winshell.ForegroundWatch | None = None
         self._embed: taskbar_embed.EmbeddedHost | None = None   # set while living inside the taskbar
@@ -345,6 +382,9 @@ class TaskbarPill(QWidget):
     def _foreground_changed(self) -> None:
         # The taskbar (or its flyout) raises itself right away and again after its animation.
         # _guard also hides us at once if the new foreground window is a fullscreen game.
+        if self._embed is not None:
+            QTimer.singleShot(150, self._guard)     # inside the taskbar: one look is enough
+            return
         for ms in (0, 150, 500):
             QTimer.singleShot(ms, self._guard)
 
@@ -380,7 +420,7 @@ class TaskbarPill(QWidget):
             if host.create():
                 self._embed = host
                 self._embed_key = None
-                self.guard.setInterval(1000)       # cheap here; follows neighbours' width changes
+                self.guard.setInterval(3000)       # follows other widgets' width changes
                 self.raiser.stop()
                 self._fs_hidden = False
                 if self.isVisible():
@@ -484,7 +524,7 @@ class TaskbarPill(QWidget):
 
     def tick(self, now: int, force: bool = False) -> None:
         store = self.ctx.store
-        state = pill_state(store.race, store.get("live"), self.settings, now, self.ctx.zone)
+        state = pill_state(store.race, store.get("live"), self.settings, now, self.ctx.zone, store.get("weather"))
         if force or state != (self.top, self.bottom, self.live):
             self.top, self.bottom, self.live = state
             race = store.race
@@ -537,6 +577,13 @@ class TaskbarPill(QWidget):
     def _pad(self) -> float:
         return max(4, min(14, self.height() * 0.3)) if self.style_.radius > 0 else 6
 
+    def _offset(self) -> int:
+        """Distance from the tray (or the widget we dock beside). Negative values move the countdown
+        onto that widget, which only makes sense when we don't dock: another app that also makes
+        room would then chase us back and forth every second. So docking ignores them."""
+        off = int(self.settings.taskbar_pill_offset)
+        return max(0, off) if getattr(self.settings, "pill_auto_dock", True) else off
+
     def place(self) -> None:
         s = self.settings
         anchor = self._anchor()
@@ -547,7 +594,7 @@ class TaskbarPill(QWidget):
         if vertical:
             h = s.pill_height if s.pill_height > 0 else 40
             w = max(40, bar.width() - 6)
-            y = max(bar.top() + 2, min(bar.bottom() - h - 1, tray.top() - h - 6 - s.taskbar_pill_offset))
+            y = max(bar.top() + 2, min(bar.bottom() - h - 1, tray.top() - h - 6 - self._offset()))
             self.setGeometry(bar.left() + 3, y, w, h)
             self._render_embed()
             return
@@ -559,7 +606,7 @@ class TaskbarPill(QWidget):
             h = max(20, min(44, bar.height() - 6))
         w = s.pill_width if s.pill_width > 0 else self._auto_width(h)
         w = max(40, min(w, bar.width() // 2))
-        x = max(bar.left() + 2, min(bar.right() - w - 1, tray.left() - w - 6 - s.taskbar_pill_offset))
+        x = max(bar.left() + 2, min(bar.right() - w - 1, tray.left() - w - 6 - self._offset()))
         self.setGeometry(x, bar.top() + (bar.height() - h) // 2, w, h)
         self._render_embed()
 
@@ -656,7 +703,8 @@ class TaskbarPill(QWidget):
             self.settings.pill_width = max(40, min(900, self._press_width - d.x()))
         else:
             delta = -d.y() if vertical else -d.x()
-            self.settings.taskbar_pill_offset = max(-400, min(1600, self._press_offset + delta))
+            low = 0 if getattr(self.settings, "pill_auto_dock", True) else -400
+            self.settings.taskbar_pill_offset = max(low, min(1600, self._press_offset + delta))
         self.place()
 
     def _release_at(self, button, gpos: QPoint) -> None:

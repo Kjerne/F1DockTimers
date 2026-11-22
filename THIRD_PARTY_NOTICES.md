@@ -15,8 +15,12 @@
 
 * **Jolpica-F1** (`api.jolpi.ca`): schedule, standings, results, qualifying. Data under
   [CC BY-NC-SA 4.0](https://github.com/jolpica/jolpica-f1/blob/main/TERMS.md), non-commercial use.
-* **OpenF1** (`api.openf1.org`): live and historical session data. Live data during sessions requires
-  a paid OpenF1 account; this app never bypasses that.
+* **OpenF1** (`api.openf1.org`): live and historical session data, and the official starting grid
+  after penalties. Live data during sessions requires a paid OpenF1 account; this app never bypasses that.
+* **Open-Meteo** (`api.open-meteo.com`): weather forecast for the circuit. Weather data by
+  [Open-Meteo.com](https://open-meteo.com/), licensed under
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); used free for non-commercial purposes. The
+  app shows the forecast as is (converted to °F / mph if you choose imperial units).
 * **F1 live timing** (`livetiming.formula1.com`): `SessionInfo.json` for revised session start
   times, and, only if you opt in, the unofficial live-timing stream. Unofficial and undocumented.
 

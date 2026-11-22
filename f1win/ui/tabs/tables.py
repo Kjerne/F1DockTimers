@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from ...core.spoilers import COMPETITIVE, session_over
 from ...core.timeutil import fmt_date, now_sec
-from ..widgets import ClickText
-from .common import Tab, empty_message
+from PySide6.QtWidgets import QHBoxLayout
+
+from ..widgets import ClickText, PillButton, Text
+from .common import RIGHT, Tab, empty_message
 from ...i18n import T
 
 
@@ -17,15 +19,54 @@ class GridTab(Tab):
             self.hint(empty_message(grid, T('No grid available. It appears here after qualifying.')))
             self.finish()
             return
+        race = ctx.store.race
+        official = ctx.store.get("grid_official")
+        has_official = bool(official.get("rows")) and race is not None and \
+            official.get("round") == f"{race.season}-{race.round}"
+        show_official = has_official and ctx.settings.grid_official
         self.header(T('STARTING GRID'))
-        if grid.get("provisional", True):
-            # Never present the qualifying order as the final grid.
-            self.hint(T('Provisional — excludes penalties'))
+        if has_official:
+            switch = QHBoxLayout()
+            switch.setSpacing(self.t.px(4))
+            for flag, label, tip in ((True, T("Official"), T("The FIA starting grid with all penalties applied.")),
+                                     (False, T("Provisional"), T("The order from qualifying, before penalties."))):
+                b = PillButton(label, self.t, flag == show_official)
+                b.setToolTip(tip)
+                b.clicked.connect(lambda flag=flag: self._switch(flag))
+                switch.addWidget(b)
+            switch.addStretch(1)
+            self.lay.addLayout(switch)
+        if show_official:
+            penalised = sum(1 for r in official["rows"] if (r.get("moved") or 0) > 0)
+            note = (T('1 driver starts further back than qualified.') if penalised == 1 else
+                    T('{count} drivers start further back than qualified.', count=penalised) if penalised else
+                    T('Same order as qualifying.'))
+            self.hint(T('Official grid with penalties (OpenF1), checked again just before the race.') + " " + note)
+            for row in official["rows"]:
+                r = self.result_row(row, 80)
+                # Penalised drivers get a short red note right after their team ("+5 places"); the
+                # times stay in their own column.
+                m = row.get("moved") or 0
+                if m > 0:
+                    lay = r.lay
+                    team_i = next(i for i in range(lay.count()) if lay.stretch(i) == 1)
+                    lay.setStretch(team_i, 0)
+                    mark = Text(T("+{places} places", places=m), self.t, 11, True, self.t.error)
+                    lay.insertWidget(team_i + 1, mark, 1)
+                    r.setToolTip(T('Qualified P{qpos}, starts P{pos} ({change} places)', qpos=int(row["pos"]) - m,
+                                   pos=row["pos"], change=f"{m:+d}"))
         else:
-            self.hint(T('Official starting grid'))
-        for row in rows:
-            self.result_row(row, 80)
+            # Never present the qualifying order as the final grid.
+            self.hint(T('Provisional: the qualifying order, before penalties.') if grid.get("provisional", True)
+                      else T('Official starting grid'))
+            for row in rows:
+                self.result_row(row, 80)
         self.finish()
+
+    def _switch(self, official: bool) -> None:
+        self.ctx.settings.grid_official = official
+        self.ctx.settings.save()
+        self.ctx.store.changed.emit("grid")              # the panel rebuilds the Grid tab
 
 
 class ResultsTab(Tab):
@@ -51,7 +92,7 @@ class ResultsTab(Tab):
         for row in rows:
             r = self.result_row(row, 92, points=True)
             if row.get("status"):
-                r.setToolTip(T('{get} · {status}', get=row.get('name', ''), status=row['status']) + (T(' · Open on Wikipedia') if row.get("url") else ""))
+                r.setToolTip(T('{name} · {status}', name=row.get('name', ''), status=row['status']) + (T(' · Open on Wikipedia') if row.get("url") else ""))
         self.finish()
 
 

@@ -62,3 +62,13 @@ def test_live_data_choice_maps_to_settings(qapp, monkeypatch):
         assert d2.live_mode.currentData() == mode
     # every tooltip points at a real control
     assert all(getattr(d2, k, None) is not None for k in TIPS)
+
+
+def test_long_tooltips_wrap(qapp):
+    from PySide6.QtWidgets import QLabel
+    from f1win.ui.widgets import wrap_tooltips
+    wrap_tooltips(qapp)
+    w = QLabel("x")
+    w.setToolTip("Short line\n" + "word " * 40)
+    lines = w.toolTip().split("\n")
+    assert lines[0] == "Short line" and max(len(x) for x in lines) <= 70 and len(lines) > 2

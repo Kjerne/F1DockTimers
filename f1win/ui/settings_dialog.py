@@ -271,6 +271,9 @@ class SettingsDialog(QDialog):
         f.addRow(T('Default tab'), self.default_tab)
         self.time_fmt = self._combo([("24h", T('24-hour')), ("12h", T('12-hour'))], s.time_format)
         f.addRow(T('Time format'), self.time_fmt)
+        self.units = self._combo([("metric", T('Metric (°C, km/h)')), ("imperial", T('Imperial (°F, mph)'))], s.units)
+        self.units.setToolTip(T('Units for the weather forecast and track conditions.'))
+        f.addRow(T('Units'), self.units)
         self.tz = QComboBox()
         self.tz.setMaxVisibleItems(16)
         self.tz.setToolTip(T('Click, then type to jump, e.g. "Europe/Co"'))
@@ -429,7 +432,39 @@ class SettingsDialog(QDialog):
         self.fav_team.setCurrentIndex(max(0, i))
         f.addRow(T('Favourite team'), self.fav_team)
         self.team_colors = self._check(T('Team colour chips'), s.team_colors)
-        f.addRow(self.team_colors)
+        from ..core import weather as wx
+        def preset(key, name):
+            near, weekend, other = wx.REFRESH[key]
+            return (key, T("{name} ({near} · {weekend} · {other})", name=name, near=wx.fmt_minutes(near),
+                                                                     weekend=wx.fmt_minutes(weekend),
+                                                                     other=wx.fmt_minutes(other)))
+        self.wx_refresh = self._combo([preset("fast", T("Fast")), preset("normal", T("Normal")),
+                                       preset("slow", T("Slow")), ("custom", T("Custom…")),
+                                       ("off", T("Off (no forecast)"))], s.weather_refresh)
+        self.wx_refresh.setToolTip(T("How often the weather forecast is downloaded from Open-Meteo: around a session "
+                                     "(3 h before until it ends) · during the race weekend · the rest of the time.\n"
+                                     "Live track weather during sessions is not affected."))
+        f.addRow(T('Weather updates'), self.wx_refresh)
+        f.addRow(self._hint(T('The three times: close to a session · rest of the race weekend · other days.')))
+        self.wx_custom = []
+        row = QHBoxLayout()
+        for label, value in zip((T("around sessions"), T("weekend"), T("otherwise")), s.weather_custom):
+            sp = QSpinBox()
+            sp.setRange(5, 1440)
+            sp.setSingleStep(5)
+            sp.setSuffix(" " + T("min"))
+            sp.setValue(int(value))
+            sp.setToolTip(T("Minutes between forecast updates: {when}.", when=label))
+            self.wx_custom.append(sp)
+            row.addWidget(QLabel(label))
+            row.addWidget(sp)
+        row.addStretch(1)
+        self.wx_custom_row = QWidget()
+        self.wx_custom_row.setLayout(row)
+        f.addRow("", self.wx_custom_row)
+        self.wx_refresh.currentIndexChanged.connect(
+            lambda _i: self.wx_custom_row.setVisible(self.wx_refresh.currentData() == "custom"))
+        self.wx_custom_row.setVisible(s.weather_refresh == "custom")
         self.spoiler = self._check(T("Spoiler-free mode (hide results until I've watched)"), s.spoiler_free)
         f.addRow(self.spoiler)
 
@@ -548,7 +583,7 @@ class SettingsDialog(QDialog):
         self.p_offset = QSpinBox()
         self.p_offset.setRange(-400, 1600)
         self.p_offset.setSuffix(T(' px left of the tray'))
-        self.p_offset.setToolTip(T('Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons.'))
+        self.p_offset.setToolTip(T('Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons (only while "Place next to other taskbar widgets" is off).'))
         self.p_offset.setValue(s.taskbar_pill_offset)
         f.addRow(T('Position'), self.p_offset)
 
@@ -632,7 +667,8 @@ class SettingsDialog(QDialog):
             wdg.setEnabled(custom)
         self.p_height.setEnabled(self.p_hmode.currentData() == "custom")
         tmp = dataclasses.replace(self.s, **self._pill_values())
-        lines = pill_state(self.store.race, self.store.get("live"), tmp, now_sec(), zone_for(tmp.timezone))
+        lines = pill_state(self.store.race, self.store.get("live"), tmp, now_sec(), zone_for(tmp.timezone),
+                           self.store.get("weather"))
         style = PillStyle.resolve(tmp, self.t)
         h = tmp.pill_height if tmp.pill_height > 0 else (30 if tmp.pill_height == -1 else 24)
         w = tmp.pill_width or 190
@@ -685,7 +721,7 @@ class SettingsDialog(QDialog):
         w = QWidget()
         v = QVBoxLayout(w)
         lab = QLabel(
-            T("<b>{app_title}</b> {version}<br>F1 schedule, countdowns, live timing and standings for Windows.<br><br>Inspired by the <a href='https://noctalia.dev/plugins/community/f1'>Noctalia F1 plugin</a> (gcap0n1, MIT).<br>Data: Jolpica-F1 · OpenF1. Circuits: bacinger/f1-circuits.<br><br><span style='color:#8F8F9E'>Unofficial · not affiliated with Formula 1. Full credits in THIRD_PARTY_NOTICES.md.</span>", app_title=APP_TITLE, version=VERSION))
+            T("<b>{app_title}</b> {version}<br>F1 schedule, countdowns, live timing and standings for Windows.<br><br>Inspired by the <a href='https://noctalia.dev/plugins/community/f1'>Noctalia F1 plugin</a> (gcap0n1, MIT).<br>Data: Jolpica-F1 · OpenF1. Weather data by <a href='https://open-meteo.com/'>Open-Meteo.com</a> (CC BY 4.0). Circuits: bacinger/f1-circuits.<br><br><span style='color:#8F8F9E'>Unofficial · not affiliated with Formula 1. Full credits in THIRD_PARTY_NOTICES.md.</span>", app_title=APP_TITLE, version=VERSION))
         lab.setWordWrap(True)
         lab.setTextFormat(Qt.TextFormat.RichText)
         lab.setOpenExternalLinks(True)
@@ -758,6 +794,7 @@ class SettingsDialog(QDialog):
         s.default_tab = self.default_tab.currentData()
         s.time_format = self.time_fmt.currentData()
         s.timezone = self.tz.currentData() or "auto"
+        s.units = self.units.currentData() or "metric"
         s.language = self.lang.currentData() or "auto"
         s.schedule_refresh_h = self.sched_h.value()
         s.standings_refresh_h = self.stand_h.value()
@@ -777,6 +814,8 @@ class SettingsDialog(QDialog):
         s.favorite_driver = self.fav_driver.currentData() or ""
         s.favorite_team = self.fav_team.currentData() or ""
         s.team_colors = self.team_colors.isChecked()
+        s.weather_refresh = self.wx_refresh.currentData() or "normal"
+        s.weather_custom = [sp.value() for sp in self.wx_custom]
         s.notify_race = self.n_race.isChecked()
         s.notify_quali = self.n_quali.isChecked()
         s.notify_sprint = self.n_sprint.isChecked()

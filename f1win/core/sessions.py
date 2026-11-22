@@ -57,12 +57,15 @@ class Race:
     url: str
     sessions: list[Session] = field(default_factory=list)  # effective, sorted
     raw_sessions: list[Session] = field(default_factory=list)  # as published
+    lat: float | None = None             # circuit coordinates (for the weather forecast)
+    lon: float | None = None
 
     def to_dict(self) -> dict:
         return {
             "season": self.season, "round": self.round, "name": self.name,
             "circuit_id": self.circuit_id, "circuit_name": self.circuit_name,
             "locality": self.locality, "country": self.country, "url": self.url,
+            "lat": self.lat, "lon": self.lon,
             "raw_sessions": [s.to_dict() for s in self.raw_sessions],
         }
 
@@ -73,6 +76,7 @@ class Race:
             str(d.get("circuit_id", "")), str(d.get("circuit_name", "")),
             str(d.get("locality", "")), str(d.get("country", "")), str(d.get("url", "")),
         )
+        r.lat, r.lon = _coord(d.get("lat"), 90), _coord(d.get("lon"), 180)
         r.raw_sessions = [Session.from_dict(s) for s in d.get("raw_sessions", [])]
         r.sessions = [Session(s.id, s.ts, 0, "published") for s in r.raw_sessions]
         return r
@@ -86,6 +90,14 @@ class Race:
         if self.locality and self.country:
             return f"{self.locality}, {self.country}"
         return self.locality or self.country
+
+
+def _coord(v, limit: float) -> float | None:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if -limit <= f <= limit else None
 
 
 def build_sessions(race: dict) -> list[Session]:

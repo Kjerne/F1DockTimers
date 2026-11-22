@@ -16,6 +16,7 @@ import sys
 ALLOWED_HOSTS = {
     "api.jolpi.ca", "api.openf1.org", "livetiming.formula1.com", "api.github.com", "github.com",
     "objects.githubusercontent.com", "release-assets.githubusercontent.com", "en.wikipedia.org",
+    "api.open-meteo.com", "open-meteo.com", "creativecommons.org",
     # documentation / licence links that only appear in comments and docs
     "about.signpath.io", "signpath.org", "www.python.org", "doc.qt.io", "www.qt.io",
 }

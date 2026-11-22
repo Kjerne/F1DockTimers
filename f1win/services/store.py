@@ -19,7 +19,8 @@ from ..paths import cache_dir
 
 log = logging.getLogger(__name__)
 CACHE_VERSION = 2
-PERSISTED = ("drivers", "constructors", "results", "grid", "last_session")
+PERSISTED = ("drivers", "constructors", "results", "grid", "last_session", "weather", "grid_official", "measured_weather")
+ROWLESS = ("weather", "measured_weather")
 
 
 def empty(key: str) -> dict:
@@ -106,7 +107,8 @@ class DataStore(QObject):
             self.auto_ts = {str(k): int(v) for k, v in (payload.get("auto_ts") or {}).items()}
             self.fetched = {str(k): float(v) for k, v in (payload.get("fetched") or {}).items()}
             for k, v in (payload.get("data") or {}).items():
-                if k in PERSISTED and isinstance(v, dict) and isinstance(v.get("rows"), list):
+                # Tables need their rows; the weather data has its own shape (hours / sessions).
+                if k in PERSISTED and isinstance(v, dict) and (isinstance(v.get("rows"), list) or k in ROWLESS):
                     v["failed"] = False
                     self.data[k] = v
         except (TypeError, ValueError, KeyError):

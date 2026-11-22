@@ -610,6 +610,8 @@ def main(argv=None) -> int:
         log.warning("system tray not available")
 
     apply_dark_palette(qapp)
+    from .ui.widgets import wrap_tooltips
+    wrap_tooltips(qapp)                 # long tooltips wrap at ~70 characters
     app = F1App(qapp, args)
     qapp.setWindowIcon(app_icon(app.theme.accent))
 

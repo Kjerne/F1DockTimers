@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 LIMITS = {
     "api.jolpi.ca": (0.35, 100),
     "api.openf1.org": (0.36, 28),
+    "api.open-meteo.com": (1.0, 10),       # free tier allows far more; we need a few a day
 }
 OPENF1_PLANS = {"free": (0.36, 28), "sponsor": (0.18, 57)}
 DEFAULT_LIMIT = (0.2, 120)
@@ -126,6 +127,7 @@ class HttpClient(QObject):
         else:
             reply = self.nam.get(req)
         self.inflight += 1
+        log.debug("%s %s", method, url.split("?")[0])
 
         def progress(received: int, _total: int) -> None:
             if received > MAX_BODY_BYTES:
