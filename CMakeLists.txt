@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(F1DockTimers VERSION 1.1.0 LANGUAGES CXX
+project(F1DockTimers VERSION 1.1.1 LANGUAGES CXX
         DESCRIPTION "F1 schedule, countdown and standings for the Windows tray (C++/Qt port)")
 
 set(CMAKE_CXX_STANDARD 20)

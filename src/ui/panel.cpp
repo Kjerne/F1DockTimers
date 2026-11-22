@@ -2,6 +2,7 @@
 
 #include "../core/i18n.h"
 #include "../core/spoilers.h"
+#include "settings_dialog.h"
 #include "tabs/live.h"
 #include "tabs/schedule.h"
 #include "tabs/tables.h"
@@ -83,9 +84,9 @@ void F1Panel::buildChrome() {
             Q_EMIT pinToggled(pinned);
         });
         header->addWidget(m_pinBtn);
-        auto* gear = new IconButton(GEAR_SVG, t, QStringLiteral("Settings (Ctrl+,)"), 14);
-        connect(gear, &IconButton::clicked, this, &F1Panel::settingsRequested);
-        header->addWidget(gear);
+        m_gearBtn = new IconButton(GEAR_SVG, t, T(QStringLiteral("Settings (Ctrl+,)")), 14);
+        connect(m_gearBtn, &IconButton::clicked, this, &F1Panel::toggleSettings);
+        header->addWidget(m_gearBtn);
     }
     root->addLayout(header);
     root->addWidget(new Divider(t));
@@ -118,6 +119,25 @@ void F1Panel::buildChrome() {
     scroll->viewport()->setAutoFillBackground(false);
     root->addWidget(scroll, 1);
 
+    // Settings tab: Revert / Save, always in view below the scrolling page, greyed out until an edit.
+    m_settingsBar = new QWidget();
+    auto* bar = new QHBoxLayout(m_settingsBar);
+    bar->setContentsMargins(0, 0, 0, 0);
+    bar->setSpacing(t.px(6));
+    m_settingsState = new Text(QString(), t, 11, false, t.muted);
+    bar->addWidget(m_settingsState, 1);
+    m_revertBtn = new PillButton(T(QStringLiteral("Revert")), t);
+    m_revertBtn->setToolTip(T(QStringLiteral("Undo the changes since the last save")));
+    connect(m_revertBtn, &PillButton::clicked, this, &F1Panel::revertSettings);
+    m_saveBtn = new PillButton(T(QStringLiteral("Save")), t, true);
+    m_saveBtn->setToolTip(T(QStringLiteral("Save and apply (Ctrl+S)")));
+    connect(m_saveBtn, &PillButton::clicked, this, &F1Panel::saveSettings);
+    bar->addWidget(m_revertBtn);
+    bar->addWidget(m_saveBtn);
+    m_settingsBar->setFixedHeight(t.px(30));
+    m_settingsBar->hide();
+    root->addWidget(m_settingsBar);
+
     auto* foot = new QHBoxLayout();
     foot->setSpacing(t.px(6));
     m_footer = new Text(QString(), t, 10, false, t.muted);
@@ -149,7 +169,8 @@ void F1Panel::setPinned(bool on) {
 }
 
 void F1Panel::dataChanged(const QString& key) {
-    if (relevant(view, key) || key == u"race") m_rebuildTimer.start();
+    if (view == SETTINGS_VIEW) {}   // never rebuild under the user's edits
+    else if (relevant(view, key) || key == u"race") m_rebuildTimer.start();
     else if (key == u"live") refreshTabbar(nowSec());
     updateHeader();
 }
@@ -159,7 +180,8 @@ void F1Panel::updateHeader() {
     const Race* race = store->race();
     m_roundLabel->setText(race ? T(QStringLiteral("Round {round} · {season}"), {{"round", race->round}, {"season", race->season}})
                                : QString());
-    if (race) m_title->setText(race->name);
+    if (view == SETTINGS_VIEW) m_title->setText(T(QStringLiteral("Settings")));
+    else if (race) m_title->setText(race->name);
     else if (store->status.value(QStringLiteral("loading")).toBool()) m_title->setText(T(QStringLiteral("Loading…")));
     else m_title->setText(T(QStringLiteral("No upcoming race")));
     QStringList bits{QStringLiteral("Updated ") + fmtStamp(store->lastUpdated(), m_ctx->zone(), m_ctx->twelve())};
@@ -170,9 +192,18 @@ void F1Panel::updateHeader() {
 }
 
 void F1Panel::refreshTabbar(qint64 now) {
-    const QList<TabEntry> tabs = tabList(m_ctx->store, *m_ctx->settings, now);
+    const bool inSettings = view == SETTINGS_VIEW;
+    QList<TabEntry> tabs;
+    if (inSettings) {   // the Settings tab's own sub-tabs replace the F1 tabs
+        const QList<SettingsPage> pages = settingsPages();
+        for (int i = 0; i < pages.size(); ++i) tabs.append({QString::number(i), pages[i].label});
+    } else {
+        tabs = tabList(m_ctx->store, *m_ctx->settings, now);
+    }
+    const QString current = inSettings ? QString::number(settingsPage) : view;
     QList<std::pair<TabEntry, bool>> sig;
-    for (const auto& e : tabs) sig.append({e, e.id == view});
+    if (inSettings) sig.append({{SETTINGS_VIEW, QString()}, false});
+    for (const auto& e : tabs) sig.append({e, e.id == current});
     if (sig == m_tabsSig) return;
     m_tabsSig = sig;
     while (m_tabbar->count()) {
@@ -184,9 +215,10 @@ void F1Panel::refreshTabbar(qint64 now) {
         delete item;
     }
     for (const auto& e : tabs) {
-        auto* b = new PillButton(e.label, *m_ctx->theme, e.id == view);
+        auto* b = new PillButton(e.label, *m_ctx->theme, e.id == current);
         const QString id = e.id;
-        connect(b, &PillButton::clicked, this, [this, id] { setView(id); });
+        if (inSettings) connect(b, &PillButton::clicked, this, [this, id] { setSettingsPage(id.toInt()); });
+        else connect(b, &PillButton::clicked, this, [this, id] { setView(id); });
         m_tabbar->addWidget(b);
     }
     m_tabbar->addStretch(1);
@@ -199,16 +231,110 @@ QStringList F1Panel::validViews(qint64 now) const {
 }
 
 void F1Panel::setView(const QString& v, bool animate) {
-    const QString target = validViews(nowSec()).contains(v) ? v : QStringLiteral("schedule");
+    if (v == SETTINGS_VIEW && m_mode != u"popup") {   // the desktop widget has no Settings tab
+        Q_EMIT settingsRequested();
+        return;
+    }
+    const QString target = (v == SETTINGS_VIEW || validViews(nowSec()).contains(v)) ? v : QStringLiteral("schedule");
     const bool changed = target != view;
+    if (changed && target == SETTINGS_VIEW) m_prevView = view;
     view = target;
+    if (m_gearBtn) m_gearBtn->setActive(view == SETTINGS_VIEW);
     rebuildBody(changed);
     if (animate && tabWidget) tabWidget->onShown();
 }
 
-void F1Panel::openFresh() { setView(pickView(m_ctx->store, *m_ctx->settings, nowSec())); }
+void F1Panel::openFresh() {
+    // Settings with unsaved edits stay open when the popup opens again.
+    if (view == SETTINGS_VIEW && m_settingsForm && m_settingsForm->dirty()) return;
+    setView(pickView(m_ctx->store, *m_ctx->settings, nowSec()));
+}
+
+// ── settings tab ─────────────────────────────────────────────────────────────
+
+void F1Panel::showSettings(int page) {
+    if (page >= 0) settingsPage = std::clamp(page, 0, static_cast<int>(settingsPages().size()) - 1);
+    if (view == SETTINGS_VIEW && m_settingsForm) setSettingsPage(settingsPage);
+    else setView(SETTINGS_VIEW, false);
+}
+
+void F1Panel::toggleSettings() { setView(view == SETTINGS_VIEW ? m_prevView : SETTINGS_VIEW); }
+
+void F1Panel::setSettingsPage(int page) {
+    settingsPage = std::clamp(page, 0, static_cast<int>(settingsPages().size()) - 1);
+    if (m_settingsForm) m_settingsForm->setPage(settingsPage);
+    refreshTabbar(nowSec());
+    scroll->verticalScrollBar()->setValue(0);
+}
+
+SettingsForm* F1Panel::makeSettingsForm() {
+    // The form with unsaved edits, else a fresh one from the current settings (the tray menu may
+    // have changed some meanwhile).
+    if (m_settingsForm && m_settingsForm->dirty()) return m_settingsForm;
+    auto* f = new SettingsForm(m_ctx->settings, m_ctx->store, *m_ctx->theme, m_ctx->saveSettings, {}, settingsPage);
+    connect(f, &SettingsForm::changed, this, &F1Panel::updateSettingsBar);
+    connect(f, &SettingsForm::pageChanged, this, [this](int i) { settingsPage = i; });
+    // Applying settings rebuilds the panel: never inside the form's own click.
+    connect(f, &SettingsForm::applied, this, [this] { QTimer::singleShot(0, this, &F1Panel::settingsApplied); });
+    connect(f, &SettingsForm::refreshRequested, this, [this] { Q_EMIT settingsAction(QStringLiteral("refresh")); });
+    connect(f, &SettingsForm::clearCacheRequested, this, [this] { Q_EMIT settingsAction(QStringLiteral("clear_cache")); });
+    connect(f, &SettingsForm::checkUpdatesRequested, this, [this] { Q_EMIT settingsAction(QStringLiteral("check_updates")); });
+    if (m_settingsForm && m_settingsForm != scroll->widget()) m_settingsForm->deleteLater();
+    m_settingsForm = f;
+    return f;
+}
+
+void F1Panel::swapBody(QWidget* w) {
+    QWidget* old = scroll->takeWidget();
+    scroll->setWidget(w);
+    w->show();
+    if (old && old != w) {
+        if (old == m_settingsForm) {   // unsaved settings edits wait for the next visit
+            old->setParent(this);
+            old->hide();
+        } else {
+            old->deleteLater();
+        }
+    }
+    tabWidget = qobject_cast<Tab*>(w);
+}
+
+void F1Panel::updateSettingsBar() {
+    const bool on = view == SETTINGS_VIEW;
+    m_settingsBar->setVisible(on);
+    const bool dirty = on && m_settingsForm && m_settingsForm->dirty();
+    m_settingsState->setText(dirty ? T(QStringLiteral("Unsaved changes")) : T(QStringLiteral("No unsaved changes")));
+    m_settingsState->setColor(dirty ? m_ctx->theme->accent : m_ctx->theme->muted);
+    for (PillButton* b : {m_revertBtn, m_saveBtn}) {
+        b->setEnabled(dirty);
+        b->setCursor(dirty ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    }
+}
+
+void F1Panel::settingsApplied() {
+    // The app applies the settings (it builds a new popup); with no app attached we rebuild here,
+    // so the form shows the saved values.
+    const QPointer<SettingsForm> before = m_settingsForm;
+    Q_EMIT settingsSaved();
+    if (view == SETTINGS_VIEW && before && m_settingsForm == before) rebuildBody();
+    updateSettingsBar();
+}
+
+void F1Panel::saveSettings() {
+    if (m_settingsForm && view == SETTINGS_VIEW) m_settingsForm->save();
+}
+
+void F1Panel::revertSettings() {
+    if (m_settingsForm) m_settingsForm->setClean();
+    if (view == SETTINGS_VIEW) rebuildBody();
+}
 
 void F1Panel::cycle(int step) {
+    if (view == SETTINGS_VIEW) {
+        const int n = static_cast<int>(settingsPages().size());
+        setSettingsPage((settingsPage + step + n) % n);
+        return;
+    }
     const QStringList views = validViews(nowSec());
     const qsizetype i = std::max<qsizetype>(0, views.indexOf(view));
     setView(views[(i + step + views.size()) % views.size()]);
@@ -246,23 +372,30 @@ void F1Panel::reveal() {
 
 void F1Panel::rebuildBody(bool resetScroll) {
     const qint64 now = nowSec();
-    if (!validViews(now).contains(view)) view = QStringLiteral("schedule");
+    if (view == SETTINGS_VIEW && m_mode != u"popup") view = QStringLiteral("schedule");
+    if (view != SETTINGS_VIEW && !validViews(now).contains(view)) view = QStringLiteral("schedule");
     updateHeader();
     m_tabsSig.clear();
     refreshTabbar(now);
     QScrollBar* bar = scroll->verticalScrollBar();
     const int keep = resetScroll ? 0 : bar->value();
-    m_ctx->compact = width() > 0 && width() < m_ctx->theme->px(400);
-    Tab* w = makeTab(view);
-    connect(w, &Tab::rebuildRequested, this, [this] { QTimer::singleShot(0, this, [this] { rebuildBody(false); }); });
-    QWidget* old = scroll->takeWidget();
-    scroll->setWidget(w);
-    if (old) old->deleteLater();
-    tabWidget = w;
+    if (view == SETTINGS_VIEW) {
+        swapBody(makeSettingsForm());
+    } else {
+        m_ctx->compact = width() > 0 && width() < m_ctx->theme->px(400);
+        Tab* w = makeTab(view);
+        connect(w, &Tab::rebuildRequested, this, [this] { QTimer::singleShot(0, this, [this] { rebuildBody(false); }); });
+        swapBody(w);
+    }
+    updateSettingsBar();
     QTimer::singleShot(0, bar, [bar, keep] { bar->setValue(keep); });
 }
 
 void F1Panel::tick(qint64 now) {
+    if (view == SETTINGS_VIEW) {
+        if (now % 30 == 0) updateHeader();
+        return;
+    }
     // A competitive session just started (or results were revealed): swap the cover in or out.
     if (spoilerView(view) && now % 15 == 0 && spoilersHiddenNow(now) != (qobject_cast<SpoilerTab*>(tabWidget) != nullptr))
         rebuildBody();
@@ -286,9 +419,14 @@ void F1Panel::keyPressEvent(QKeyEvent* e) {
     if (k == Qt::Key_Left) cycle(-1);
     else if (k == Qt::Key_Right) cycle(1);
     else if (k == Qt::Key_R && !e->modifiers()) Q_EMIT refreshRequested();
-    else if (k == Qt::Key_Escape) Q_EMIT closeRequested();
-    else if (e->matches(QKeySequence::Preferences) || (k == Qt::Key_Comma && (e->modifiers() & Qt::ControlModifier)))
-        Q_EMIT settingsRequested();
+    else if (k == Qt::Key_Escape) {
+        if (view == SETTINGS_VIEW) setView(m_prevView);   // back to the F1 tab it came from
+        else Q_EMIT closeRequested();
+    } else if (e->matches(QKeySequence::Preferences) || (k == Qt::Key_Comma && (e->modifiers() & Qt::ControlModifier))) {
+        if (m_mode == u"popup") toggleSettings();
+        else Q_EMIT settingsRequested();
+    } else if (e->matches(QKeySequence::Save) && view == SETTINGS_VIEW)
+        saveSettings();
     else if (k == Qt::Key_PageDown || k == Qt::Key_Down)
         bar->setValue(bar->value() + (k == Qt::Key_PageDown ? bar->pageStep() : bar->singleStep() * 3));
     else if (k == Qt::Key_PageUp || k == Qt::Key_Up)

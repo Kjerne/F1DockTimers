@@ -87,6 +87,50 @@ private Q_SLOTS:
         QCOMPARE(winshell::withNeighbours(r(1860, 0, 1920, 1080), r(1860, 900, 1920, 1080), {r(1862, 840, 1918, 898)}).top(), 840);
     }
 
+    // Two docking apps that both yield to each other swap places forever; we keep our spot.
+    void neighbourOnFarSideDoesNotPushUs() {
+        const QRect bar = r(0, 1050, 1920, 1080), tray = r(1624, 1050, 1920, 1080);
+        const QRect me = r(1460, 1050, 1618, 1080);        // we are next to the tray
+        const QRect battery = r(1340, 1050, 1458, 1080);   // BatteryHub docked outside us
+        QCOMPARE(winshell::withNeighbours(bar, tray, {battery}, me).left(), 1624);
+        // The same widget on the tray side still pushes us out, also when it overlaps us.
+        QCOMPARE(winshell::withNeighbours(bar, tray, {r(1503, 1050, 1622, 1080)}, me).left(), 1503);
+        // wider than us, overlapping: the tray-facing edge decides, not the centre
+        QCOMPARE(winshell::withNeighbours(bar, tray, {r(1400, 1050, 1622, 1080)}, r(1500, 1050, 1618, 1080)).left(), 1400);
+        // vertical bar: the far side is above us
+        QCOMPARE(winshell::withNeighbours(r(1860, 0, 1920, 1080), r(1860, 900, 1920, 1080), {r(1862, 790, 1918, 840)},
+                                          r(1862, 850, 1918, 896))
+                     .top(),
+                 900);
+    }
+
+    void dockingWaitsBeforeMovingTowardTheTray() {
+        Rig rig(false);
+        const TaskbarPill& pill = *rig.pill;
+        const QRect bar = r(0, 1050, 1920, 1080);
+        double t = 100;
+        auto at = [&](int left) { return pill.steadyAnchor(bar, r(left, 1050, 1920, 1080), t).left(); };
+        QCOMPARE(at(1340), 1340);   // first: taken as is
+        QCOMPARE(at(1200), 1200);   // pushed out: at once
+        QCOMPARE(at(1624), 1200);   // a gap opened: hold
+        t += TaskbarPill::DOCK_SETTLE_S - 1;
+        QCOMPARE(at(1624), 1200);
+        t += 2;
+        QCOMPARE(at(1624), 1624);   // still open: move in
+        at(1500);                   // a neighbour came back within the wait: that resets it
+        QCOMPARE(at(1624), 1500);
+        QCOMPARE(at(1500), 1500);
+        t += TaskbarPill::DOCK_SETTLE_S + 1;
+        QCOMPARE(at(1624), 1500);   // new gap, new wait
+        // taskbar moved or resized: no waiting
+        QCOMPARE(pill.steadyAnchor(r(0, 0, 1920, 30), r(1624, 0, 1920, 30), t).left(), 1624);
+    }
+
+    void neighbourScanIsSafeHere() {
+        const auto rects = winshell::taskbarRects(r(0, 0, 10, 10));
+        QVERIFY(!rects || rects->bar.isValid());
+    }
+
     void widgetsButtonLookupIsSafeHere() {
         // The UI Automation lookup runs off the UI thread and never throws; nullopt when there is no button.
         WidgetsButtonWatch w;

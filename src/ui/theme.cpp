@@ -98,6 +98,13 @@ void applyDarkPalette() {
     for (auto role : {QPalette::Text, QPalette::ButtonText, QPalette::WindowText})
         pal.setColor(QPalette::Disabled, role, QColor::fromString(QLatin1StringView("#6E6E7A")));
     QApplication::setPalette(pal);
+    // Windows hints UI text to whole pixels at 100 %; at 125/150 % those hinted letter widths are then
+    // rounded one by one, which leaves visible gaps inside words ("tas kbar"). The panel's own fonts
+    // already avoid hinting (Theme::font); do the same for settings fields, menus and tooltips.
+    QFont f = QApplication::font();
+    f.setHintingPreference(QFont::PreferNoHinting);
+    f.setStyleStrategy(QFont::PreferAntialias);
+    QApplication::setFont(f);
 }
 
 }  // namespace f1::ui

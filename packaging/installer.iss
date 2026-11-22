@@ -5,9 +5,9 @@
 ; it). Settings (%APPDATA%\F1DockTimers) and cache (%LOCALAPPDATA%\F1DockTimers) are shared with
 ; the Python build, so they carry over without an import step.
 ;
-;   ISCC.exe /DAppVersion=1.1.0 packaging\installer.iss      (packaging\build.ps1 does this)
+;   ISCC.exe /DAppVersion=1.1.1 packaging\installer.iss      (packaging\build.ps1 does this)
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.1.1"
 #endif
 ; Tests build a copy under another id and name (/DTestBuild /DAppId=... /DName=F1DockTimersTest), so it has
 ; its own folder, shortcut, Run value and data folders and never touches a real install.

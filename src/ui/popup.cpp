@@ -89,9 +89,10 @@ void TrayPopup::toggle(const QRect& iconRect) {
     showAt(iconRect);
 }
 
-void TrayPopup::showAt(const QRect& iconRect) {
+void TrayPopup::showAt(const QRect& iconRect, int settingsPage) {
     const QString edge = place(iconRect);
-    panel->openFresh();
+    if (settingsPage >= 0) panel->showSettings(settingsPage);
+    else panel->openFresh();
     const QPoint end = pos();
     if (m_settings->animations) {
         QPoint d(0, 14);
@@ -146,8 +147,10 @@ void TrayPopup::hideAnimated() {
 }
 
 void TrayPopup::changeEvent(QEvent* e) {
+    // Stay open for our own pop-ups: a drop-down list, or a colour / file / message box opened from
+    // the Settings tab (those set the "f1_hold" property while open).
     if (e->type() == QEvent::ActivationChange && !isActiveWindow() && isVisible() && !panel->pinned &&
-        !QApplication::activeModalWidget())
+        !QApplication::activeModalWidget() && !QApplication::activePopupWidget() && property("f1_hold").toInt() <= 0)
         hideAnimated();
     QWidget::changeEvent(e);
 }

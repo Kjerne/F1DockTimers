@@ -25,7 +25,6 @@
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QPushButton>
-#include <QTabWidget>
 
 Q_LOGGING_CATEGORY(lcApp, "f1.app")
 
@@ -84,7 +83,7 @@ App::App(QObject* parent) : QObject(parent) {
     m_actUpdate->setVisible(false);
     if (!wintrust::isPackaged())   // the Microsoft Store updates its copy itself
         m_menu->addAction(T(QStringLiteral("Check for updates")), this, [this] { m_updater->check(true); });
-    m_menu->addAction(T(QStringLiteral("Settings…")), this, &App::openSettings);
+    m_menu->addAction(T(QStringLiteral("Settings…")), this, [this] { openSettings(); });
     m_actStart = checkable(F1_TR_NOOP("Start with Windows"), autostart::isEnabled(), &App::setAutostart);
     m_menu->addSeparator();
     m_menu->addAction(T(QStringLiteral("Exit")), this, &App::quit);
@@ -239,14 +238,10 @@ void App::screenshots(const QString& dir, const QStringList& tabs) {
             });
             return;
         }
-        if (tabs[i].startsWith(QStringLiteral("settings"))) {   // "settings" or "settings:3" (page index)
-            auto* d = new ui::SettingsDialog(&m_settings, m_store, m_theme, [] {});   // never saves
-            d->setAttribute(Qt::WA_DeleteOnClose);
-            if (auto* tw = d->findChild<QTabWidget*>()) tw->setCurrentIndex(tabs[i].section(u':', 1).toInt());
-            d->show();
-            QTimer::singleShot(400, this, [d, dir, tabs, shoot, i] {
-                d->grab().save(QDir(dir).filePath(QString(tabs[i]).replace(u':', u'-') + QStringLiteral(".png")));
-                d->close();
+        if (tabs[i].startsWith(QStringLiteral("settings"))) {   // "settings" or "settings:3": the Settings tab on a page
+            m_popup->panel->showSettings(tabs[i].section(u':', 1).toInt());
+            QTimer::singleShot(400, this, [this, dir, tabs, shoot, i] {
+                m_popup->grab().save(QDir(dir).filePath(QString(tabs[i]).replace(u':', u'-') + QStringLiteral(".png")));
                 (*shoot)(i + 1);
             });
             return;
@@ -270,31 +265,31 @@ void App::screenshots(const QString& dir, const QStringList& tabs) {
 
 void App::wirePanel(ui::F1Panel* panel) {
     connect(panel, &ui::F1Panel::refreshRequested, this, [this] { m_poller->refreshAll(); });
-    connect(panel, &ui::F1Panel::settingsRequested, this, &App::openSettings);
+    connect(panel, &ui::F1Panel::settingsRequested, this, [this] { openSettings(); });
+    connect(panel, &ui::F1Panel::settingsSaved, this, &App::applySettings);
+    connect(panel, &ui::F1Panel::settingsAction, this, [this](const QString& act) {
+        if (act == u"refresh") m_poller->refreshAll(true);
+        else if (act == u"check_updates") m_updater->check(true);
+        else if (act == u"clear_cache") {
+            m_store->clearCache();
+            m_poller->refreshAll(true);
+        }
+    });
     connect(panel, &ui::F1Panel::updateClicked, this, &App::promptUpdate);
     panel->setUpdate(m_updateVersion);
 }
 
-void App::openSettings() {
-    if (m_settingsDialog) {   // second click while open: the same window, in front
-        bringToFront(m_settingsDialog);
-        return;
+void App::openSettings(int page) {
+    ui::F1Panel* panel = m_popup->panel;
+    if (page < 0) page = panel->settingsPage;
+    if (m_popup->isVisible()) {
+        panel->showSettings(page);
+        m_popup->raise();   // already topmost: no bringToFront (that clears it)
+        m_popup->activateWindow();
+    } else {
+        m_popup->showAt(m_tray->geometry(), page);
     }
-    if (!m_popup->panel->pinned) m_popup->hideAnimated();
-    auto* d = new ui::SettingsDialog(&m_settings, m_store, m_theme, [this] { saveSettings(); });
-    d->setWindowIcon(ui::appIcon(m_theme.accent));
-    d->setAttribute(Qt::WA_DeleteOnClose);
-    connect(d, &ui::SettingsDialog::applied, this, &App::applySettings);
-    connect(d, &ui::SettingsDialog::refreshRequested, this, [this] { m_poller->refreshAll(true); });
-    connect(d, &ui::SettingsDialog::clearCacheRequested, this, [this] {
-        m_store->clearCache();
-        m_poller->refreshAll(true);
-    });
-    connect(d, &ui::SettingsDialog::checkUpdatesRequested, this, [this] { m_updater->check(true); });
-    connect(d, &ui::SettingsDialog::reopenRequested, this, [this] { QTimer::singleShot(150, this, &App::openSettings); });
-    m_settingsDialog = d;   // QPointer: null again once Qt deletes it
-    d->show();
-    bringToFront(d);
+    panel->setFocus();
 }
 
 void App::bringToFront(QWidget* w) {
@@ -309,13 +304,18 @@ void App::applySettings() {
     m_theme = ui::Theme::fromSettings(m_settings);
     m_zone = zoneFor(m_settings.timezone);
     m_tray->setIcon(ui::appIcon(m_theme.accent, m_liveIcon));
-    // The panel caches fonts and sizes: build a fresh one with the new theme.
+    // The panel caches fonts and sizes: build a fresh one with the new theme. Saved from its
+    // Settings tab: it comes back on the same page.
     const bool wasVisible = m_popup->isVisible();
+    const bool inSettings = m_popup->panel->view == ui::SETTINGS_VIEW;
+    const int page = m_popup->panel->settingsPage;
     m_popup->hide();
     m_popup->deleteLater();
     m_popup = new ui::TrayPopup(&m_ctx, &m_settings);
     wirePanel(m_popup->panel);
-    if (wasVisible) openPanel();
+    m_popup->panel->settingsPage = page;
+    if (wasVisible && inSettings) openSettings(page);
+    else if (wasVisible) openPanel();
     if (m_widget) {   // same for the desktop widget; it comes back where it was
         if (m_settings.widget_remember_position) {
             const QRect g = m_widget->geometry();
@@ -525,7 +525,7 @@ void App::trayActivated(QSystemTrayIcon::ActivationReason reason) {
 void App::showMenu(const QPoint& pos) { m_menu->popup(pos); }
 
 void App::maybeTrim() {
-    if (QApplication::activePopupWidget() || QApplication::activeModalWidget() || m_popup->isVisible() || m_settingsDialog) {
+    if (QApplication::activePopupWidget() || QApplication::activeModalWidget() || m_popup->isVisible()) {
         m_uiSeen = true;
         return;
     }

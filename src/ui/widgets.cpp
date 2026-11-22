@@ -151,6 +151,11 @@ PillButton::PillButton(const QString& text, const Theme& theme, bool selected, Q
     setToolTip(text);
 }
 
+void PillButton::setSelected(bool on) {
+    m_selected = on;
+    update();
+}
+
 void PillButton::enterEvent(QEnterEvent*) {
     m_hover = true;
     update();
@@ -168,17 +173,17 @@ void PillButton::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
     const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     const int rad = m_theme.px(6);
+    if (!isEnabled()) p.setOpacity(0.38);   // greyed out: nothing to do yet (e.g. Save with no changes)
     if (m_selected) {
         p.setPen(Qt::NoPen);
         p.setBrush(QColor::fromString(m_theme.accent));
         p.drawRoundedRect(r, rad, rad);
         p.setPen(QColor::fromString(m_theme.onAccent()));
     } else {
-        if (m_hover) {
-            p.setPen(Qt::NoPen);
-            p.setBrush(alpha(m_theme.onSurface, 0.08));
-            p.drawRoundedRect(r, rad, rad);
-        }
+        // A thin outline, so an unselected tab still reads as something to click.
+        p.setPen(QPen(m_hover ? QColor::fromString(m_theme.muted) : QColor::fromString(m_theme.outline), 1));
+        p.setBrush(m_hover ? alpha(m_theme.onSurface, 0.08) : QColor(Qt::transparent));
+        p.drawRoundedRect(r, rad, rad);
         p.setPen(QColor::fromString(m_theme.onSurface));
     }
     p.setFont(m_font);

@@ -75,6 +75,12 @@ public:
     bool embedFailed() const { return m_embedFailed; }
     const EmbeddedHost* embedHost() const { return m_embed.get(); }
     int effectiveOffset() const { return offset(); }
+    // Docking edge with patience (physical px; `now` in seconds, any monotonic clock): a widget that
+    // pushes us outward is followed at once, but a gap opening toward the tray is only filled after
+    // it has stayed open for DOCK_SETTLE_S. Neighbours that hide for a moment, re-create or resize
+    // (and another app re-docking at the same instant as us) then can't make the two swap places.
+    QRect steadyAnchor(const QRect& bar, const QRect& anchor, double now) const;
+    static constexpr double DOCK_SETTLE_S = 4.0;
 
 Q_SIGNALS:
     void clicked();
@@ -96,6 +102,7 @@ private:
         bool vertical;
     };
     std::optional<Anchor> anchor() const;
+    std::optional<QRect> myRect() const;   // where we sit now (physical px), or nullopt while not shown
     int autoWidth(int height) const;
     double maxPx() const;
     double pad() const;
@@ -135,6 +142,8 @@ private:
     std::unique_ptr<EmbeddedHost> m_embed;
     QString m_embedKey;
     bool m_embedFailed = false;
+    mutable std::optional<std::pair<QRect, int>> m_dockEdge;   // (bar, edge) we dock against, physical px
+    mutable std::optional<double> m_dockSince;                 // when a gap toward the tray first opened
 };
 
 }  // namespace f1::ui

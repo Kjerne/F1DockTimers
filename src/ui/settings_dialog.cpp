@@ -9,8 +9,12 @@
 #include "../services/poller.h"
 #include "../services/wintrust.h"
 #include "version.h"
+#include "widgets.h"
 
+#include <QAbstractItemView>
+#include <QAbstractScrollArea>
 #include <QAbstractSpinBox>
+#include <QApplication>
 #include <QColorDialog>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -21,12 +25,14 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QStandardPaths>
-#include <QTabWidget>
 #include <QTimeZone>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QPointer>
 #include <QWheelEvent>
 
 namespace f1::ui {
@@ -51,64 +57,144 @@ QString arrowFile(const QString& color, bool up) {
     return QDir::fromNativeSeparators(path);
 }
 
-class NoWheelUnlessFocused : public QObject {
+// A wheel over a drop-down or number box that isn't focused scrolls the page instead of changing
+// the value under the mouse.
+class WheelScrollsPage : public QObject {
 public:
     using QObject::QObject;
     bool eventFilter(QObject* obj, QEvent* ev) override {
         if (ev->type() == QEvent::Wheel && obj->isWidgetType() && !static_cast<QWidget*>(obj)->hasFocus()) {
-            ev->ignore();
+            for (QWidget* w = static_cast<QWidget*>(obj)->parentWidget(); w; w = w->parentWidget())
+                if (auto* sa = qobject_cast<QAbstractScrollArea*>(w)) {
+                    QApplication::sendEvent(sa->verticalScrollBar(), ev);
+                    break;
+                }
             return true;
         }
         return false;
     }
 };
 
+// The tick inside a checked toggle box (same glyph as BatteryHub's settings).
+QString checkFile(const QString& color) {
+    const QString path = QDir(paths::cacheDir()).filePath(QStringLiteral("check_%1.svg").arg(QString(color).remove(u'#')));
+    if (!QFile::exists(path)) {
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly))
+            f.write(QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%1\" "
+                                   "stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12l5 5l10 -10\"/></svg>")
+                        .arg(color)
+                        .toUtf8());
+    }
+    return QDir::fromNativeSeparators(path);
+}
+
+// While a colour / file / message box is open, the tray popup must not hide itself (it checks
+// the "f1_hold" property of its window).
+struct Hold {
+    QPointer<QWidget> win;
+    explicit Hold(QWidget* w) : win(w->window()) { win->setProperty("f1_hold", win->property("f1_hold").toInt() + 1); }
+    ~Hold() {
+        if (win) win->setProperty("f1_hold", std::max(0, win->property("f1_hold").toInt() - 1));
+    }
+};
+
 }  // namespace
 
-QString dialogStylesheet(const Theme& t) {
-    const QString arrow = arrowFile(t.muted, false), up = arrowFile(t.muted, true);
+QString dialogStylesheet(const Theme& t, bool embedded) {
+    const QString arrow = arrowFile(t.muted, false), up = arrowFile(t.muted, true), tick = checkFile(t.onSurface);
     QString css = QStringLiteral(R"(
-    QDialog, QWidget#page { background:%SURFACE%; color:%ON%; }
+    QDialog { background:%SURFACE%; color:%ON%; }
+    QWidget#page, QWidget#settingsForm { background:%PAGEBG%; color:%ON%; }
     QLabel { color:%ON%; background:transparent; }
-    QLabel[hint="true"] { color:%MUTED%; }
-    QTabWidget::pane { border:1px solid %OUTLINE%; border-radius:8px; top:-1px; }
-    QTabBar::tab { background:transparent; color:%ON%; padding:6px 12px; border-radius:6px; margin:2px; }
-    QTabBar::tab:selected { background:%ACCENT%; color:%ONACCENT%; }
-    QTabBar::tab:hover:!selected { background:rgba(228,225,236,0.08); }
+    QLabel[hint="true"] { color:%MUTED%; font-size:%HINTPX%px; }
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { background:#24243A; color:%ON%;
-        border:1px solid %OUTLINE%; border-radius:6px; padding:4px 6px; selection-background-color:%ACCENT%;
-        selection-color:%ONACCENT%; }
-    QComboBox { combobox-popup: 0; padding-right:24px; }
+        border:1px solid %OUTLINE%; border-radius:%6%px; padding:%4%px %6%px; min-height:%18%px;
+        selection-background-color:%ACCENT%; selection-color:%ONACCENT%; }
+    QComboBox { combobox-popup: 0; padding-right:%24%px; }
     QComboBox:hover, QLineEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover { border-color:%MUTED%; }
     QComboBox:focus, QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus { border-color:%ACCENT%; }
-    QComboBox::drop-down { subcontrol-origin:padding; subcontrol-position:center right; width:22px; border:none; }
-    QComboBox::down-arrow { image:url(%ARROW%); width:10px; height:10px; }
-    QComboBox QAbstractItemView { border:1px solid %OUTLINE%; outline:0; padding:2px; }
-    QComboBox QAbstractItemView::item { min-height:24px; padding:2px 8px; }
+    QComboBox:disabled, QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QPushButton:disabled
+        { color:%OUTLINE%; }
+    QComboBox::drop-down { subcontrol-origin:padding; subcontrol-position:center right; width:%22%px; border:none; }
+    QComboBox::down-arrow { image:url(%ARROW%); width:%10%px; height:%10%px; }
+    QComboBox QAbstractItemView { border:1px solid %OUTLINE%; outline:0; padding:%2%px; }
+    QComboBox QAbstractItemView::item { min-height:%24%px; padding:%2%px %8%px; }
     QComboBox QAbstractItemView { background:#24243A; color:%ON%; selection-background-color:%ACCENT%;
         selection-color:%ONACCENT%; }
-    QSpinBox, QDoubleSpinBox { padding-right:22px; }
+    QSpinBox, QDoubleSpinBox { padding-right:%22%px; }
     QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin:border; subcontrol-position:top right;
-        width:20px; border:none; border-left:1px solid %OUTLINE%; border-top-right-radius:6px; background:#2A2A40; }
+        width:%20%px; border:none; border-left:1px solid %OUTLINE%; border-top-right-radius:%6%px; background:#2A2A40; }
     QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin:border; subcontrol-position:bottom right;
-        width:20px; border:none; border-left:1px solid %OUTLINE%; border-bottom-right-radius:6px; background:#2A2A40; }
+        width:%20%px; border:none; border-left:1px solid %OUTLINE%; border-bottom-right-radius:%6%px; background:#2A2A40; }
     QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
     QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background:#383852; }
-    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image:url(%UP%); width:9px; height:9px; }
-    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image:url(%ARROW%); width:9px; height:9px; }
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image:url(%UP%); width:%9%px; height:%9%px; }
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image:url(%ARROW%); width:%9%px; height:%9%px; }
     QToolTip { background:#24243A; color:%ON%; border:1px solid %OUTLINE%; padding:4px 6px; }
-    QCheckBox { color:%ON%; spacing:8px; }
-    QPushButton { background:#2A2A40; color:%ON%; border:1px solid %OUTLINE%; border-radius:6px;
-        padding:5px 12px; }
+    QCheckBox { color:%ON%; spacing:%8%px; background:transparent; }
+    QCheckBox::indicator { width:%16%px; height:%16%px; border:1px solid %OUTLINE%; border-radius:%3%px; background:#24243A; }
+    QCheckBox::indicator:hover { border-color:%MUTED%; }
+    QCheckBox::indicator:checked { image:url(%TICK%); }
+    QCheckBox::indicator:disabled { background:transparent; }
+    QPushButton { background:#2A2A40; color:%ON%; border:1px solid %OUTLINE%; border-radius:%6%px;
+        padding:%5%px %12%px; }
     QPushButton:hover { background:#33334C; }
     QPushButton:default { background:%ACCENT%; color:%ONACCENT%; border:none; }
     QScrollArea { background:transparent; border:none; }
     )");
     css.replace(QStringLiteral("%SURFACE%"), t.surface).replace(QStringLiteral("%ON%"), t.onSurface);
+    css.replace(QStringLiteral("%PAGEBG%"), embedded ? QStringLiteral("transparent") : t.surface);
     css.replace(QStringLiteral("%MUTED%"), t.muted).replace(QStringLiteral("%OUTLINE%"), t.outline);
     css.replace(QStringLiteral("%ACCENT%"), t.accent).replace(QStringLiteral("%ONACCENT%"), t.onAccent());
-    css.replace(QStringLiteral("%ARROW%"), arrow).replace(QStringLiteral("%UP%"), up);
+    css.replace(QStringLiteral("%ARROW%"), arrow).replace(QStringLiteral("%UP%"), up).replace(QStringLiteral("%TICK%"), tick);
+    css.replace(QStringLiteral("%HINTPX%"), QString::number(std::max(6, qRound(12 * t.scale * t.fontScale))));
+    for (int v : {24, 22, 20, 18, 16, 12, 10, 9, 8, 6, 5, 4, 3, 2})   // sizes follow the interface scale
+        css.replace(QStringLiteral("%%1%").arg(v), QString::number(t.px(v)));
     return css;
+}
+
+QList<SettingsPage> settingsPages() {
+    return {{QStringLiteral("general"), T(QStringLiteral("General"))},     {QStringLiteral("appearance"), T(QStringLiteral("Appearance"))},
+            {QStringLiteral("taskbar"), T(QStringLiteral("Taskbar"))},     {QStringLiteral("formula1"), T(QStringLiteral("Formula 1"))},
+            {QStringLiteral("live"), T(QStringLiteral("Live data"))},      {QStringLiteral("about"), T(QStringLiteral("About"))}};
+}
+
+int settingsPageIndex(const QString& key) {
+    const QList<SettingsPage> pages = settingsPages();
+    for (int i = 0; i < pages.size(); ++i)
+        if (pages[i].key == key) return i;
+    return 0;
+}
+
+// ── toggle ───────────────────────────────────────────────────────────────────
+
+Toggle::Toggle(const QString& text, bool checked, QWidget* parent) : QWidget(parent) {
+    auto* lay = new QHBoxLayout(this);
+    lay->setContentsMargins(0, 0, 0, 0);
+    box = new QCheckBox();
+    box->setChecked(checked);
+    box->setAccessibleName(text);
+    label = new QLabel(text);
+    label->setWordWrap(true);
+    label->setAttribute(Qt::WA_TransparentForMouseEvents);
+    lay->addWidget(box, 0, Qt::AlignTop);
+    lay->addWidget(label, 1);
+    setCursor(Qt::PointingHandCursor);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+}
+
+void Toggle::mouseReleaseEvent(QMouseEvent* e) {
+    if (e->button() == Qt::LeftButton && isEnabled() && rect().contains(e->position().toPoint())) box->toggle();
+}
+
+void Toggle::changeEvent(QEvent* e) {
+    if (e->type() == QEvent::EnabledChange) {   // greyed text while disabled
+        label->setProperty("hint", !isEnabled());
+        label->style()->unpolish(label);
+        label->style()->polish(label);
+    }
+    QWidget::changeEvent(e);
 }
 
 QStringList zoneNames() {
@@ -200,77 +286,112 @@ const QMap<QString, QString>& settingsTips() {
     return tips;
 }
 
-SettingsDialog::SettingsDialog(Settings* settings, DataStore* store, const Theme& theme, std::function<void()> save,
-                               CredentialStore creds, QWidget* parent)
-    : QDialog(parent), m_s(settings), m_store(store), m_t(theme), m_save(std::move(save)), m_creds(std::move(creds)) {
-    setWindowTitle(T(QStringLiteral("{app_title} · Settings"), {{"app_title", QStringLiteral(F1_APP_TITLE)}}));
-    setStyleSheet(dialogStylesheet(theme));
-    resize(560, 620);
+SettingsForm::SettingsForm(Settings* settings, DataStore* store, const Theme& theme, std::function<void()> save,
+                           CredentialStore creds, int page, bool embedded, QWidget* parent)
+    : QWidget(parent), m_s(settings), m_store(store), m_t(theme), m_save(std::move(save)), m_creds(std::move(creds)) {
+    setObjectName(QStringLiteral("settingsForm"));
+    setAttribute(Qt::WA_StyledBackground, true);
+    setFont(theme.font(13));
+    setStyleSheet(dialogStylesheet(theme, embedded));
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     auto* root = new QVBoxLayout(this);
-    auto* tabs = new QTabWidget();
-    auto page = [](QWidget* form) {
-        auto* sa = new QScrollArea();
-        sa->setWidgetResizable(true);
-        form->setObjectName(QStringLiteral("page"));
-        sa->setWidget(form);
-        return sa;
-    };
-    tabs->addTab(page(general()), T(QStringLiteral("General")));
-    tabs->addTab(page(appearance()), T(QStringLiteral("Appearance")));
-    tabs->addTab(page(taskbar()), T(QStringLiteral("Taskbar")));
-    tabs->addTab(page(formula1()), T(QStringLiteral("Formula 1")));
-    tabs->addTab(page(live()), T(QStringLiteral("Live data")));
-    tabs->addTab(page(about()), T(QStringLiteral("About")));
-    root->addWidget(tabs);
-    auto* bb = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
-    bb->button(QDialogButtonBox::Save)->setDefault(true);
-    connect(bb, &QDialogButtonBox::accepted, this, &SettingsDialog::saveAndClose);
-    connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    root->addWidget(bb);
+    root->setContentsMargins(0, theme.px(8), theme.px(4), 0);
+    for (QWidget* w : {general(), appearance(), taskbar(), formula1(), live(), about()}) {
+        w->setObjectName(QStringLiteral("page"));
+        w->layout()->setContentsMargins(0, 0, 0, 0);
+        if (auto* f = qobject_cast<QFormLayout*>(w->layout())) {
+            f->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+            // a row too wide for the panel puts its field under the label instead of clipping it
+            f->setRowWrapPolicy(QFormLayout::WrapLongRows);
+            f->setVerticalSpacing(theme.px(8));
+            f->setHorizontalSpacing(theme.px(12));
+        }
+        w->hide();
+        root->addWidget(w);
+        m_pages << w;
+    }
+    root->addStretch(1);
     m_built = true;
     updatePreview();
     applyTips();
+    tidyInputs();
+    m_page = -1;
+    setPage(page);
+    watchChanges();
 }
 
-void SettingsDialog::showEvent(QShowEvent* e) {
-    QDialog::showEvent(e);
-    if (m_wheelGuard) return;
-    m_wheelGuard = true;   // a scroll over the page must not change values under the mouse
-    auto* guard = new NoWheelUnlessFocused(this);
+void SettingsForm::setPage(int page) {
+    page = std::clamp(page, 0, static_cast<int>(m_pages.size()) - 1);
+    for (int i = 0; i < m_pages.size(); ++i) m_pages[i]->setVisible(i == page);
+    const bool changedPage = page != m_page;
+    m_page = page;
+    if (changedPage) Q_EMIT pageChanged(page);
+}
+
+void SettingsForm::markDirty() {
+    if (m_dirty) return;
+    m_dirty = true;
+    Q_EMIT changed();
+}
+
+void SettingsForm::watchChanges() {
+    for (auto* w : findChildren<QCheckBox*>()) connect(w, &QCheckBox::toggled, this, &SettingsForm::markDirty);
+    for (auto* w : findChildren<QComboBox*>()) connect(w, &QComboBox::currentIndexChanged, this, &SettingsForm::markDirty);
+    for (auto* w : findChildren<QSpinBox*>()) connect(w, &QSpinBox::valueChanged, this, &SettingsForm::markDirty);
+    for (auto* w : findChildren<QDoubleSpinBox*>()) connect(w, &QDoubleSpinBox::valueChanged, this, &SettingsForm::markDirty);
+    for (auto* w : findChildren<QLineEdit*>())
+        if (!qobject_cast<QAbstractSpinBox*>(w->parentWidget())) connect(w, &QLineEdit::textChanged, this, &SettingsForm::markDirty);
+}
+
+void SettingsForm::tidyInputs() {
+    // Drop-downs show their choice in full (the open list too); the row wraps when there's no room.
+    // The wheel scrolls the page unless the field has focus.
+    auto* wheel = new WheelScrollsPage(this);
+    for (QComboBox* c : findChildren<QComboBox*>()) {
+        c->view()->setMinimumWidth(c->view()->sizeHintForColumn(0) + m_t.px(28));
+        c->setMinimumWidth(c->sizeHint().width());
+    }
     for (QWidget* w : findChildren<QWidget*>())
         if (qobject_cast<QComboBox*>(w) || qobject_cast<QAbstractSpinBox*>(w)) {
             w->setFocusPolicy(Qt::StrongFocus);
-            w->installEventFilter(guard);
+            w->installEventFilter(wheel);
         }
 }
 
-void SettingsDialog::applyTips() {
+void SettingsForm::section(QFormLayout* f, const QString& text) {
+    // A heading inside a page ("NOTIFICATIONS"), like the other tabs' headings.
+    auto* w = new Text(text.toUpper(), m_t, 11, true, m_t.muted, Qt::AlignLeft, 0.3);
+    w->setMinimumHeight(w->sizeHint().height() + m_t.px(10));
+    f->addRow(w);
+}
+
+void SettingsForm::applyTips() {
     // Hover help on the field and on its label.
     const QList<QFormLayout*> forms = findChildren<QFormLayout*>();
     for (auto it = settingsTips().begin(); it != settingsTips().end(); ++it) {
         QWidget* w = m_controls.value(it.key());
         if (!w) continue;
         w->setToolTip(it.value());
+        if (auto* tg = qobject_cast<Toggle*>(w->parentWidget())) tg->setToolTip(it.value());
         for (QFormLayout* f : forms)
             if (QWidget* lab = f->labelForField(w)) lab->setToolTip(it.value());
     }
 }
 
-QLabel* SettingsDialog::hintLabel(const QString& text) {
+QLabel* SettingsForm::hintLabel(const QString& text) {
     auto* lab = new QLabel(text);
     lab->setWordWrap(true);
     lab->setProperty("hint", true);
     return lab;
 }
 
-QCheckBox* SettingsDialog::check(const QString& name, const QString& label, bool value) {
-    auto* c = new QCheckBox(label);
-    c->setChecked(value);
-    reg(name, c);
+Toggle* SettingsForm::check(const QString& name, const QString& label, bool value) {
+    auto* c = new Toggle(label, value);
+    reg(name, c->box);
     return c;
 }
 
-QComboBox* SettingsDialog::combo(const QString& name, const QList<std::pair<QString, QString>>& options, const QString& value) {
+QComboBox* SettingsForm::combo(const QString& name, const QList<std::pair<QString, QString>>& options, const QString& value) {
     auto* c = new QComboBox();
     for (const auto& [val, label] : options) c->addItem(label, val);
     c->setCurrentIndex(std::max(0, c->findData(value)));
@@ -278,7 +399,7 @@ QComboBox* SettingsDialog::combo(const QString& name, const QList<std::pair<QStr
     return c;
 }
 
-QPushButton* SettingsDialog::colorButton(const QString& name, const QString& value) {
+QPushButton* SettingsForm::colorButton(const QString& name, const QString& value) {
     auto* b = new QPushButton();
     auto show = [this, b](const QString& c) {
         const QString hex = QColor::fromString(c).name().toUpper();
@@ -289,28 +410,35 @@ QPushButton* SettingsDialog::colorButton(const QString& name, const QString& val
     };
     show(value);
     connect(b, &QPushButton::clicked, this, [this, b, show] {
-        const QColor c = QColorDialog::getColor(QColor::fromString(b->property("color").toString()), this, T(QStringLiteral("Colour")));
+        QColor c;
+        {
+            Hold hold(this);
+            c = QColorDialog::getColor(QColor::fromString(b->property("color").toString()), this, T(QStringLiteral("Colour")));
+        }
         if (c.isValid()) {
             show(c.name());
             updatePreview();
+            markDirty();
         }
     });
     reg(name, b);
     return b;
 }
 
-QString SettingsDialog::colorOf(const QString& name) const { return m_controls.value(name)->property("color").toString(); }
+QString SettingsForm::colorOf(const QString& name) const { return m_controls.value(name)->property("color").toString(); }
 
 // â”€â”€ pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-QWidget* SettingsDialog::general() {
+QWidget* SettingsForm::general() {
     const Settings& s = *m_s;
     auto* w = new QWidget();
     auto* f = new QFormLayout(w);
+    section(f, T(QStringLiteral("Start-up")));
     auto* startWin = check(QStringLiteral("start_win"), T(QStringLiteral("Start with Windows")), s.start_with_windows);
     f->addRow(startWin);
     f->addRow(check(QStringLiteral("start_min"), T(QStringLiteral("Start minimized to the tray (no popup at launch)")), s.start_minimized));
     f->addRow(check(QStringLiteral("widget_on"), T(QStringLiteral("Show the desktop widget")), s.widget_enabled));
+    section(f, T(QStringLiteral("Display")));
     f->addRow(T(QStringLiteral("Default tab")),
               combo(QStringLiteral("default_tab"),
                     {{QStringLiteral("schedule"), T(QStringLiteral("Schedule"))}, {QStringLiteral("drivers"), T(QStringLiteral("Drivers"))},
@@ -359,6 +487,7 @@ QWidget* SettingsDialog::general() {
     row->addWidget(langFolder);
     f->addRow(T(QStringLiteral("Language")), row);
     f->addRow(hintLabel(T(QStringLiteral("A new language takes effect after restarting F1DockTimers."))));
+    section(f, T(QStringLiteral("Data")));
     for (const auto& [name, value] : {std::pair{QStringLiteral("sched_h"), s.schedule_refresh_h},
                                       std::pair{QStringLiteral("stand_h"), s.standings_refresh_h}}) {
         auto* sp = new QDoubleSpinBox();
@@ -370,17 +499,19 @@ QWidget* SettingsDialog::general() {
     }
     row = new QHBoxLayout();
     auto* b1 = new QPushButton(T(QStringLiteral("Refresh data now")));
-    connect(b1, &QPushButton::clicked, this, &SettingsDialog::refreshRequested);
+    connect(b1, &QPushButton::clicked, this, &SettingsForm::refreshRequested);
     auto* b2 = new QPushButton(T(QStringLiteral("Clear cache")));
     connect(b2, &QPushButton::clicked, this, [this] {
         Q_EMIT clearCacheRequested();
+        Hold hold(this);
         QMessageBox::information(this, T(QStringLiteral("Cache")), T(QStringLiteral("Cache cleared. Data will be fetched again.")));
     });
     row->addWidget(b1);
     row->addWidget(b2);
     row->addStretch(1);
     f->addRow(row);
-    QCheckBox* autoUpdate = check(QStringLiteral("auto_update"), T(QStringLiteral("Check for updates automatically (once a day)")), s.check_updates);
+    section(f, T(QStringLiteral("Updates")));
+    Toggle* autoUpdate = check(QStringLiteral("auto_update"), T(QStringLiteral("Check for updates automatically (once a day)")), s.check_updates);
     if (wintrust::isPackaged()) {
         // Microsoft Store copy: the Store installs updates; the GitHub check is switched off.
         autoUpdate->hide();
@@ -390,18 +521,19 @@ QWidget* SettingsDialog::general() {
         f->addRow(autoUpdate);
         row = new QHBoxLayout();
         auto* b5 = new QPushButton(T(QStringLiteral("Check for updates (you have {version})"), {{"version", QStringLiteral(F1_VERSION)}}));
-        connect(b5, &QPushButton::clicked, this, &SettingsDialog::checkUpdatesRequested);
+        connect(b5, &QPushButton::clicked, this, &SettingsForm::checkUpdatesRequested);
         row->addWidget(b5);
         row->addStretch(1);
         f->addRow(row);
     }
     row = new QHBoxLayout();
+    section(f, T(QStringLiteral("Backup")));
     auto* b3 = new QPushButton(T(QStringLiteral("Export settings…")));
     b3->setToolTip(T(QStringLiteral("Save all settings to a .json file (no passwords)")));
-    connect(b3, &QPushButton::clicked, this, &SettingsDialog::exportSettings);
+    connect(b3, &QPushButton::clicked, this, &SettingsForm::exportSettings);
     auto* b4 = new QPushButton(T(QStringLiteral("Import settings…")));
     b4->setToolTip(T(QStringLiteral("Load settings from an exported .json file")));
-    connect(b4, &QPushButton::clicked, this, &SettingsDialog::importSettings);
+    connect(b4, &QPushButton::clicked, this, &SettingsForm::importSettings);
     row->addWidget(b3);
     row->addWidget(b4);
     row->addStretch(1);
@@ -409,18 +541,29 @@ QWidget* SettingsDialog::general() {
     return w;
 }
 
-QWidget* SettingsDialog::appearance() {
+QWidget* SettingsForm::appearance() {
     const Settings& s = *m_s;
     auto* w = new QWidget();
     auto* f = new QFormLayout(w);
+    section(f, T(QStringLiteral("Colours and text")));
     auto* accentBtn = new QPushButton(s.accent);
     reg(QStringLiteral("accent_btn"), accentBtn);
     connect(accentBtn, &QPushButton::clicked, this, [this] {
-        const QColor c = QColorDialog::getColor(QColor::fromString(m_accent), this, T(QStringLiteral("Accent colour")));
-        if (c.isValid()) setAccent(c.name());
+        QColor c;
+        {
+            Hold hold(this);
+            c = QColorDialog::getColor(QColor::fromString(m_accent), this, T(QStringLiteral("Accent colour")));
+        }
+        if (c.isValid()) {
+            setAccent(c.name());
+            markDirty();
+        }
     });
     auto* reset = new QPushButton(T(QStringLiteral("Original")));
-    connect(reset, &QPushButton::clicked, this, [this] { setAccent(QStringLiteral("#BCC2FF")); });
+    connect(reset, &QPushButton::clicked, this, [this] {
+        setAccent(QStringLiteral("#BCC2FF"));
+        markDirty();
+    });
     auto* row = new QHBoxLayout();
     row->addWidget(accentBtn);
     row->addWidget(reset);
@@ -445,7 +588,7 @@ QWidget* SettingsDialog::appearance() {
         f->addRow(T(QString::fromLatin1(label)), sp);
     }
     f->addRow(check(QStringLiteral("anim"), T(QStringLiteral("Animations (circuit fade-in, start lights, popup slide)")), s.animations));
-    f->addRow(new QLabel(T(QStringLiteral("Desktop widget"))));
+    section(f, T(QStringLiteral("Desktop widget")));
     f->addRow(check(QStringLiteral("on_top"), T(QStringLiteral("Always on top")), s.widget_always_on_top));
     f->addRow(check(QStringLiteral("click_through"), T(QStringLiteral("Click-through (mouse passes through; turn off from the tray menu)")),
                     s.widget_click_through));
@@ -459,7 +602,7 @@ QWidget* SettingsDialog::appearance() {
     return w;
 }
 
-QWidget* SettingsDialog::taskbar() {
+QWidget* SettingsForm::taskbar() {
     const Settings& s = *m_s;
     auto* w = new QWidget();
     auto* f = new QFormLayout(w);
@@ -476,6 +619,7 @@ QWidget* SettingsDialog::taskbar() {
     f->addRow(m_preview);
     f->addRow(hintLabel(T(QStringLiteral("On the taskbar: drag to move · drag the left edge to resize · double-click it to reset."))));
 
+    section(f, T(QStringLiteral("Look")));
     f->addRow(T(QStringLiteral("Style")),
               combo(QStringLiteral("p_style"),
                     {{QStringLiteral("noctalia"), T(QStringLiteral("Noctalia (dark panel, accent text)"))},
@@ -508,6 +652,7 @@ QWidget* SettingsDialog::taskbar() {
         reg(QString::fromLatin1(name), sp);
         return sp;
     };
+    section(f, T(QStringLiteral("Size and position")));
     auto* radius = spin("p_radius", 0, 30, T(QStringLiteral(" px")), s.pill_radius);
     radius->setSpecialValueText(T(QStringLiteral("0 (square box)")));
     f->addRow(T(QStringLiteral("Corner radius")), radius);
@@ -528,6 +673,7 @@ QWidget* SettingsDialog::taskbar() {
     offset->setToolTip(T(QStringLiteral("Extra distance from the tray (or from the widget it docks beside). Negative values move "
                                         "it closer, even over the tray icons (only while \"Place next to other taskbar widgets\" is off).")));
     f->addRow(T(QStringLiteral("Position")), offset);
+    section(f, T(QStringLiteral("Text")));
     auto* font = new QDoubleSpinBox();
     font->setRange(7, 28);
     font->setSingleStep(0.5);
@@ -543,6 +689,7 @@ QWidget* SettingsDialog::taskbar() {
     f->addRow(T(QStringLiteral("Lines")),
               combo(QStringLiteral("p_lines"), {{QStringLiteral("2"), T(QStringLiteral("Two lines"))}, {QStringLiteral("1"), T(QStringLiteral("One line"))}},
                     QString::number(s.pill_lines)));
+    section(f, T(QStringLiteral("Lines")));
     auto* preset = new QComboBox();
     preset->addItem(T(QStringLiteral("(custom)")), QVariant());
     const QList<pill::Preset> pre = pill::presets();
@@ -557,7 +704,7 @@ QWidget* SettingsDialog::taskbar() {
         auto* e = new QLineEdit(value);
         reg(QString::fromLatin1(name), e);
         f->addRow(T(QString::fromLatin1(label)), e);
-        connect(e, &QLineEdit::textChanged, this, &SettingsDialog::updatePreview);
+        connect(e, &QLineEdit::textChanged, this, &SettingsForm::updatePreview);
     }
     QStringList toks, help;
     for (const QString& k : pill::tokenNames()) {
@@ -580,16 +727,16 @@ QWidget* SettingsDialog::taskbar() {
         l->setCurrentIndex(l->findData(p.bottom.isEmpty() ? QStringLiteral("1") : QStringLiteral("2")));
     });
     for (const char* n : {"p_style", "p_hmode", "p_align", "p_lines"})
-        connect(qobject_cast<QComboBox*>(control(QString::fromLatin1(n))), &QComboBox::currentIndexChanged, this, &SettingsDialog::updatePreview);
+        connect(qobject_cast<QComboBox*>(control(QString::fromLatin1(n))), &QComboBox::currentIndexChanged, this, &SettingsForm::updatePreview);
     for (const char* n : {"p_bg_op", "p_radius", "p_width", "p_height"})
-        connect(qobject_cast<QSpinBox*>(control(QString::fromLatin1(n))), &QSpinBox::valueChanged, this, &SettingsDialog::updatePreview);
-    connect(font, &QDoubleSpinBox::valueChanged, this, &SettingsDialog::updatePreview);
+        connect(qobject_cast<QSpinBox*>(control(QString::fromLatin1(n))), &QSpinBox::valueChanged, this, &SettingsForm::updatePreview);
+    connect(font, &QDoubleSpinBox::valueChanged, this, &SettingsForm::updatePreview);
     for (const char* n : {"p_autofit", "p_bold", "p_border"})
-        connect(qobject_cast<QCheckBox*>(control(QString::fromLatin1(n))), &QCheckBox::toggled, this, &SettingsDialog::updatePreview);
+        connect(qobject_cast<QCheckBox*>(control(QString::fromLatin1(n))), &QCheckBox::toggled, this, &SettingsForm::updatePreview);
     return w;
 }
 
-void SettingsDialog::pillValues(Settings& s) const {
+void SettingsForm::pillValues(Settings& s) const {
     auto cb = [this](const char* n) { return qobject_cast<QCheckBox*>(control(QString::fromLatin1(n)))->isChecked(); };
     auto co = [this](const char* n) { return qobject_cast<QComboBox*>(control(QString::fromLatin1(n)))->currentData().toString(); };
     auto sp = [this](const char* n) { return qobject_cast<QSpinBox*>(control(QString::fromLatin1(n)))->value(); };
@@ -621,7 +768,7 @@ void SettingsDialog::pillValues(Settings& s) const {
     s.pill_live_bottom = le("p_lbottom");
 }
 
-void SettingsDialog::updatePreview() {
+void SettingsForm::updatePreview() {
     if (!m_built || !m_preview) return;
     const bool custom = qobject_cast<QComboBox*>(control(QStringLiteral("p_style")))->currentData().toString() == u"custom";
     for (QWidget* w : m_customRows) w->setEnabled(custom);
@@ -636,15 +783,17 @@ void SettingsDialog::updatePreview() {
     m_preview->setPreview(style, lines, QSize(w, h), tmp.pill_font_px, tmp.pill_autofit, QColor(0x1C, 0x1C, 0x1C));
 }
 
-QWidget* SettingsDialog::formula1() {
+QWidget* SettingsForm::formula1() {
     const Settings& s = *m_s;
     auto* w = new QWidget();
     auto* f = new QFormLayout(w);
+    section(f, T(QStringLiteral("Countdown")));
     f->addRow(T(QStringLiteral("Countdown target")),
               combo(QStringLiteral("cd_target"),
                     {{QStringLiteral("race"), T(QStringLiteral("Next race"))}, {QStringLiteral("session"), T(QStringLiteral("Next session"))}},
                     s.countdown_target));
     f->addRow(hintLabel(T(QStringLiteral("Race = always to the Grand Prix. Session = to FP1, FP2, Quali … in turn. Hover for more."))));
+    section(f, T(QStringLiteral("Favourites")));
     auto* favDriver = new QComboBox();
     favDriver->setMaxVisibleItems(16);
     favDriver->addItem(T(QStringLiteral("(none)")), QString());
@@ -689,6 +838,7 @@ QWidget* SettingsDialog::formula1() {
                                 {{"name", name}, {"near", weather::fmtMinutes(near)}, {"weekend", weather::fmtMinutes(weekend)},
                                  {"other", weather::fmtMinutes(other)}})};
     };
+    section(f, T(QStringLiteral("Weather")));
     auto* wx = combo(QStringLiteral("wx_refresh"),
                      {preset(QStringLiteral("fast"), T(QStringLiteral("Fast"))), preset(QStringLiteral("normal"), T(QStringLiteral("Normal"))),
                       preset(QStringLiteral("slow"), T(QStringLiteral("Slow"))), {QStringLiteral("custom"), T(QStringLiteral("Custom…"))},
@@ -699,7 +849,8 @@ QWidget* SettingsDialog::formula1() {
                                     "not affected.")));
     f->addRow(T(QStringLiteral("Weather updates")), wx);
     f->addRow(hintLabel(T(QStringLiteral("The three times: close to a session · rest of the race weekend · other days."))));
-    auto* row = new QHBoxLayout();
+    auto* row = new QFormLayout();
+    row->setContentsMargins(0, 0, 0, 0);
     const QString labels[] = {T(QStringLiteral("around sessions")), T(QStringLiteral("weekend")), T(QStringLiteral("otherwise"))};
     for (int k = 0; k < 3; ++k) {
         auto* sp = new QSpinBox();
@@ -709,18 +860,17 @@ QWidget* SettingsDialog::formula1() {
         sp->setValue(s.weather_custom.at(k).toInt());
         sp->setToolTip(T(QStringLiteral("Minutes between forecast updates: {when}."), {{"when", labels[k]}}));
         m_wxCustom << sp;
-        row->addWidget(new QLabel(labels[k]));
-        row->addWidget(sp);
+        row->addRow(labels[k], sp);
     }
-    row->addStretch(1);
     m_wxCustomRow = new QWidget();
     m_wxCustomRow->setLayout(row);
-    f->addRow(QString(), m_wxCustomRow);
+    f->addRow(m_wxCustomRow);
     connect(wx, &QComboBox::currentIndexChanged, this, [this, wx] { m_wxCustomRow->setVisible(wx->currentData().toString() == u"custom"); });
     m_wxCustomRow->setVisible(s.weather_refresh == u"custom");
+    section(f, T(QStringLiteral("Spoilers")));
     f->addRow(check(QStringLiteral("spoiler"), T(QStringLiteral("Spoiler-free mode (hide results until I've watched)")), s.spoiler_free));
 
-    f->addRow(new QLabel(T(QStringLiteral("Notifications"))));
+    section(f, T(QStringLiteral("Notifications")));
     f->addRow(check(QStringLiteral("n_race"), T(QStringLiteral("Before the race")), s.notify_race));
     f->addRow(check(QStringLiteral("n_quali"), T(QStringLiteral("Before qualifying")), s.notify_quali));
     f->addRow(check(QStringLiteral("n_sprint"), T(QStringLiteral("Before the sprint")), s.notify_sprint));
@@ -732,7 +882,7 @@ QWidget* SettingsDialog::formula1() {
     reg(QStringLiteral("lead"), lead);
     f->addRow(T(QStringLiteral("Lead time")), lead);
 
-    f->addRow(new QLabel(T(QStringLiteral("Session-time corrections"))));
+    section(f, T(QStringLiteral("Session-time corrections")));
     f->addRow(hintLabel(T(QStringLiteral("Only needed if a delay isn't picked up automatically. Resets next round."))));
     const Race* race = m_store->race();
     const QJsonObject offs = (race && s.session_offsets.value(QStringLiteral("round_key")).toString() == roundKey(race))
@@ -753,7 +903,7 @@ QWidget* SettingsDialog::formula1() {
     return w;
 }
 
-QWidget* SettingsDialog::live() {
+QWidget* SettingsForm::live() {
     const Settings& s = *m_s;
     auto* w = new QWidget();
     auto* f = new QFormLayout(w);
@@ -768,6 +918,7 @@ QWidget* SettingsDialog::live() {
     f->addRow(T(QStringLiteral("Live data")), liveMode);
     auto* liveHint = hintLabel(QString());
     f->addRow(liveHint);
+    section(f, T(QStringLiteral("OpenF1 account")));
     user = new QLineEdit(s.openf1_username);
     user->setPlaceholderText(T(QStringLiteral("you@example.com")));
     reg(QStringLiteral("user"), user);
@@ -797,11 +948,12 @@ QWidget* SettingsDialog::live() {
     };
     connect(liveMode, &QComboBox::currentIndexChanged, this, modeChanged);
     modeChanged();
+    section(f, T(QStringLiteral("Troubleshooting")));
     f->addRow(check(QStringLiteral("debug"), T(QStringLiteral("Debug: force Grid and Live tabs")), s.debug_force_tabs));
     return w;
 }
 
-QWidget* SettingsDialog::about() {
+QWidget* SettingsForm::about() {
     auto* w = new QWidget();
     auto* v = new QVBoxLayout(w);
     auto* lab = new QLabel(T(QStringLiteral(
@@ -821,7 +973,7 @@ QWidget* SettingsDialog::about() {
 
 // â”€â”€ actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-void SettingsDialog::setAccent(const QString& c) {
+void SettingsForm::setAccent(const QString& c) {
     m_accent = QColor::fromString(c).name().toUpper();
     auto* b = qobject_cast<QPushButton*>(control(QStringLiteral("accent_btn")));
     b->setText(m_accent);
@@ -829,9 +981,10 @@ void SettingsDialog::setAccent(const QString& c) {
     b->setStyleSheet(QStringLiteral("background:%1; color:%2; border:none;").arg(m_accent, fg));
 }
 
-void SettingsDialog::exportSettings() {
+void SettingsForm::exportSettings() {
     const QString start = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
                               .filePath(QStringLiteral("F1DockTimers-settings.json"));
+    Hold hold(this);
     const QString path = QFileDialog::getSaveFileName(this, T(QStringLiteral("Export settings")), start, QStringLiteral("Settings (*.json)"));
     if (path.isEmpty()) return;
     QString err;
@@ -843,7 +996,8 @@ void SettingsDialog::exportSettings() {
                              T(QStringLiteral("Settings exported. Passwords are not included; window positions stay on this PC.")));
 }
 
-void SettingsDialog::importSettings() {
+void SettingsForm::importSettings() {
+    Hold hold(this);
     const QString path = QFileDialog::getOpenFileName(this, T(QStringLiteral("Import settings")),
                                                       QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
                                                       QStringLiteral("Settings (*.json)"));
@@ -855,17 +1009,17 @@ void SettingsDialog::importSettings() {
         return;
     }
     m_save();
-    Q_EMIT applied();
     QMessageBox::information(this, T(QStringLiteral("Import settings")),
                              changed->size() == 1
                                  ? T(QStringLiteral("Imported and applied (1 setting changed). Settings will reopen with the new values."))
                                  : T(QStringLiteral("Imported and applied ({count} settings changed). Settings will reopen with the new values."),
                                      {{"count", QString::number(changed->size())}}));
-    accept();
+    m_dirty = false;   // the form is built again from the imported values
+    Q_EMIT applied();
     Q_EMIT reopenRequested();
 }
 
-void SettingsDialog::saveAndClose() {
+void SettingsForm::save() {
     Settings& s = *m_s;
     auto cb = [this](const char* n) { return qobject_cast<QCheckBox*>(control(QString::fromLatin1(n)))->isChecked(); };
     auto co = [this](const char* n) { return qobject_cast<QComboBox*>(control(QString::fromLatin1(n)))->currentData().toString(); };
@@ -922,13 +1076,71 @@ void SettingsDialog::saveAndClose() {
     const QString u = user->text().trimmed();
     if (u != s.openf1_username && !s.openf1_username.isEmpty() && pw->text().isEmpty()) m_creds.remove(s.openf1_username);
     s.openf1_username = u;
-    if (!u.isEmpty() && !pw->text().isEmpty() && !m_creds.set(u, pw->text()))
+    if (!u.isEmpty() && !pw->text().isEmpty() && !m_creds.set(u, pw->text())) {
+        Hold hold(this);
         QMessageBox::warning(this, T(QStringLiteral("OpenF1")), T(QStringLiteral("Could not store the password in Windows Credential Manager.")));
-    pw->clear();
+    }
+    {
+        const QSignalBlocker quiet(pw);
+        pw->clear();
+    }
     s.debug_force_tabs = cb("debug");
     s.clamp();
     m_save();
+    m_dirty = false;
     Q_EMIT applied();
+}
+
+// ── dialog ───────────────────────────────────────────────────────────────────
+
+SettingsDialog::SettingsDialog(Settings* settings, DataStore* store, const Theme& theme, std::function<void()> save,
+                               CredentialStore creds, QWidget* parent, int page)
+    : QDialog(parent) {
+    setWindowTitle(T(QStringLiteral("{app_title} · Settings"), {{"app_title", QStringLiteral(F1_APP_TITLE)}}));
+    setStyleSheet(dialogStylesheet(theme));
+    resize(560, 660);
+    auto* root = new QVBoxLayout(this);
+    form = new SettingsForm(settings, store, theme, std::move(save), std::move(creds), page, false);
+    liveMode = form->liveMode;
+    user = form->user;
+    pw = form->pw;
+    auto* pills = new QHBoxLayout();
+    pills->setSpacing(theme.px(2));
+    QList<PillButton*> buttons;
+    const QList<SettingsPage> pages = settingsPages();
+    for (int i = 0; i < pages.size(); ++i) {
+        auto* b = new PillButton(pages[i].label, theme, i == form->page());
+        connect(b, &PillButton::clicked, form, [this, i] { form->setPage(i); });
+        pills->addWidget(b);
+        buttons << b;
+    }
+    pills->addStretch(1);
+    root->addLayout(pills);
+    connect(form, &SettingsForm::pageChanged, this, [buttons](int i) {
+        for (int n = 0; n < buttons.size(); ++n) buttons[n]->setSelected(n == i);
+    });
+    auto* sa = new QScrollArea();
+    sa->setWidgetResizable(true);
+    sa->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    sa->setWidget(form);
+    root->addWidget(sa, 1);
+    connect(form, &SettingsForm::applied, this, &SettingsDialog::applied);
+    connect(form, &SettingsForm::refreshRequested, this, &SettingsDialog::refreshRequested);
+    connect(form, &SettingsForm::clearCacheRequested, this, &SettingsDialog::clearCacheRequested);
+    connect(form, &SettingsForm::checkUpdatesRequested, this, &SettingsDialog::checkUpdatesRequested);
+    connect(form, &SettingsForm::reopenRequested, this, [this] {
+        accept();
+        Q_EMIT reopenRequested();
+    });
+    auto* bb = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
+    bb->button(QDialogButtonBox::Save)->setDefault(true);
+    connect(bb, &QDialogButtonBox::accepted, this, &SettingsDialog::saveAndClose);
+    connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    root->addWidget(bb);
+}
+
+void SettingsDialog::saveAndClose() {
+    form->save();
     accept();
 }
 

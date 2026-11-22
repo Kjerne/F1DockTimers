@@ -19,7 +19,6 @@
 #include <QDir>
 #include <QImage>
 #include <QPainter>
-#include <QTabWidget>
 #include <QTimer>
 #include <cstdio>
 
@@ -90,17 +89,19 @@ void pillShots(const Settings& settings, const DataStore& store, const ui::Theme
     img.save(out.filePath(QStringLiteral("taskbar-styles.png")));
 }
 
-void settingsShots(Settings& settings, DataStore& store, const ui::Theme& theme, const QDir& out) {
-    ui::SettingsDialog d(&settings, &store, theme, [] {});   // never saves
-    d.resize(560, 700);
-    d.move(-10000, -10000);
-    d.show();
-    auto* tabs = d.findChild<QTabWidget*>();
-    const std::pair<int, const char*> pages[] = {{2, "settings-taskbar.png"}, {3, "settings-f1.png"}, {4, "settings-live.png"}};
-    for (const auto& [index, name] : pages) {
-        tabs->setCurrentIndex(index);
+void settingsShots(ui::Ctx& ctx, const QDir& out) {
+    // The panel's Settings tab on three of its pages (never saves: the context has no save callback).
+    ui::F1Panel p(&ctx, QStringLiteral("popup"));
+    p.bgOpacity = 1.0;
+    p.resize(500, 690);
+    p.move(-10000, -10000);
+    p.show();
+    const std::pair<const char*, const char*> pages[] = {
+        {"taskbar", "settings-taskbar.png"}, {"formula1", "settings-f1.png"}, {"live", "settings-live.png"}};
+    for (const auto& [key, name] : pages) {
+        p.showSettings(ui::settingsPageIndex(QString::fromLatin1(key)));
         QApplication::processEvents();
-        d.grab().save(out.filePath(QString::fromLatin1(name)));
+        p.grab().save(out.filePath(QString::fromLatin1(name)));
     }
 }
 
@@ -136,7 +137,7 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(300, &app, [&] {
         panelShots(ctx, out);
         pillShots(settings, store, theme, out);
-        settingsShots(settings, store, theme, out);
+        settingsShots(ctx, out);
         for (const QString& f : out.entryList({QStringLiteral("*.png")}, QDir::Files, QDir::Name))
             std::printf("%s\n", qPrintable(f));
         app.quit();

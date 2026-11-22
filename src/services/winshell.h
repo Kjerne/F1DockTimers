@@ -13,9 +13,16 @@ struct TaskbarRects {
     QRect bar, tray, anchor;   // physical pixels; anchor = tray grown over other apps' add-ons
 };
 
-std::optional<TaskbarRects> taskbarRects();
+// `mine`: where the countdown sits now (physical px), if shown: widgets on its far side from the
+// tray then don't push it (see withNeighbours).
+std::optional<TaskbarRects> taskbarRects(std::optional<QRect> mine = std::nullopt);
 // The tray rect grown to include add-ons packed right next to it (physical px), so we go beside them.
-QRect withNeighbours(const QRect& bar, const QRect& tray, const QList<QRect>& others);
+// With `mine`, only add-ons on the tray side of it count.
+QRect withNeighbours(const QRect& bar, const QRect& tray, const QList<QRect>& others,
+                     std::optional<QRect> mine = std::nullopt);
+// A window's rect in physical px.
+std::optional<QRect> windowRect(quintptr hwnd);
+bool windowVisible(quintptr hwnd);
 // Classic (Windows 10 style) taskbar: stop the app buttons at `rightEdge` so they never slide under
 // the embedded countdown. Windows 11's XAML taskbar has no such window and is left alone.
 void fitTaskButtons(quintptr bar, int rightEdge);

@@ -37,9 +37,22 @@ const QStringList& taskbarCore() {
     return c;
 }
 
+// Windows that are never "the thing on screen" (tooltips, menus, the tray overflow).
+const QStringList& skipClasses() {
+    static const QStringList c = {QStringLiteral("tooltips_class32"), QStringLiteral("#32768"),
+                                  QStringLiteral("Xaml_WindowedPopupClass"), QStringLiteral("NotifyIconOverflowWindow"),
+                                  QStringLiteral("TopLevelWindowForOverflowXamlIsland")};
+    return c;
+}
+
+// Visible add-ons from other apps: child windows of the taskbar, plus small topmost windows floating
+// over it that lie entirely inside it. Apps that dock onto the taskbar without becoming part of it
+// (BatteryHub's floating mode, net meters, other countdowns) use the latter, so we sit beside those too.
 QList<QRect> neighbours(HWND bar) {
     QList<QRect> out;
     const DWORD own = GetCurrentProcessId();
+    DWORD explorer = 0;
+    GetWindowThreadProcessId(bar, &explorer);
     HWND h = GetWindow(bar, GW_CHILD);
     for (int i = 0; i < 200 && h; ++i, h = GetWindow(h, GW_HWNDNEXT)) {
         if (!IsWindowVisible(h)) continue;
@@ -49,6 +62,23 @@ QList<QRect> neighbours(HWND bar) {
         if (pid != own && !taskbarCore().contains(className(h)) && r && r->width() > 0 && r->height() > 0)
             out.append(*r);
     }
+    const auto b = rectOf(bar);
+    if (!b) return out;
+    const bool vertical = b->height() > b->width();
+    const int span = vertical ? b->height() : b->width();
+    h = GetTopWindow(nullptr);
+    for (int i = 0; i < 2000 && h; ++i, h = GetWindow(h, GW_HWNDNEXT)) {
+        if (!IsWindowVisible(h) || !(GetWindowLongW(h, GWL_EXSTYLE) & WS_EX_TOPMOST)) continue;
+        const auto r = rectOf(h);
+        if (!r || r->width() <= 0 || r->height() <= 0 || !b->contains(*r)) continue;
+        if ((vertical ? r->height() : r->width()) >= span / 3) continue;
+        DWORD pid = 0;
+        GetWindowThreadProcessId(h, &pid);
+        if (pid == own || pid == explorer) continue;
+        int cloaked = 0;
+        DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+        if (!cloaked && !skipClasses().contains(className(h))) out.append(*r);
+    }
     return out;
 }
 
@@ -56,9 +86,16 @@ QList<QRect> neighbours(HWND bar) {
 
 // The tray rect grown to include add-ons packed right next to it, so we go beside them.
 // Works on exclusive right/bottom edges like the Python version.
-QRect withNeighbours(const QRect& barQ, const QRect& trayQ, const QList<QRect>& others) {
+// `mine`: where we sit now. Another app doing the same thing (BatteryHub) steps past us as we step
+// past it; if both always yield, two widgets that touch keep swapping places. So only a widget on
+// the tray side of us (its tray-facing edge at or past ours) pushes us; one already on our far side
+// stays there, and it is that widget's job to stay beside us.
+QRect withNeighbours(const QRect& barQ, const QRect& trayQ, const QList<QRect>& allOthers, std::optional<QRect> mine) {
     const int bl = barQ.left(), bt = barQ.top(), br = barQ.right() + 1, bb = barQ.bottom() + 1;
     const bool vertical = (bb - bt) > (br - bl);
+    QList<QRect> others;
+    for (const QRect& q : allOthers)
+        if (!mine || (vertical ? q.bottom() >= mine->bottom() : q.right() >= mine->right())) others.append(q);
     int left = trayQ.left(), top = trayQ.top();
     const int right = trayQ.right() + 1, bottom = trayQ.bottom() + 1;
     const int limit = vertical ? (bb - bt) / 3 : (br - bl) / 3;
@@ -90,7 +127,11 @@ void CALLBACK winEventProc(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD)
 
 }  // namespace
 
-std::optional<TaskbarRects> taskbarRects() {
+std::optional<QRect> windowRect(quintptr hwnd) { return rectOf(reinterpret_cast<HWND>(hwnd)); }
+
+bool windowVisible(quintptr hwnd) { return hwnd && IsWindowVisible(reinterpret_cast<HWND>(hwnd)); }
+
+std::optional<TaskbarRects> taskbarRects(std::optional<QRect> mine) {
     HWND bar = FindWindowW(L"Shell_TrayWnd", nullptr);
     if (!bar) return std::nullopt;
     HWND tray = FindWindowExW(bar, nullptr, L"TrayNotifyWnd", nullptr);
@@ -105,7 +146,7 @@ std::optional<TaskbarRects> taskbarRects() {
         // taskbar). Its position comes from a background UI Automation lookup; never blocks.
         if (const auto wb = widgetsButtonRect()) others.append(*wb);
     }
-    out.anchor = out.tray.isValid() ? withNeighbours(out.bar, out.tray, others) : out.tray;
+    out.anchor = out.tray.isValid() ? withNeighbours(out.bar, out.tray, others, mine) : out.tray;
     return out;
 }
 

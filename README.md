@@ -64,7 +64,7 @@ Starting a second copy doesn't start a second app; it opens the panel of the one
 | Where | Action |
 | --- | --- |
 | Tray icon | Left click: open/close the panel. Right click: menu (refresh, widget, taskbar countdown, click-through, settings, start with Windows, exit). Middle click: refresh. |
-| Panel | `←` `→` change tabs, `R` refreshes, `Esc` closes, `Ctrl+,` opens settings. The pin icon keeps the panel open when you click elsewhere. Click a row to open its Wikipedia page. |
+| Panel | `←` `→` change tabs, `R` refreshes, `Esc` closes, `Ctrl+,` (or the gear) opens the Settings tab, where changes apply when you press Save (`Ctrl+S`). The pin icon keeps the panel open when you click elsewhere. Click a row to open its Wikipedia page. |
 | Desktop widget | Drag to move, drag the edges to resize, right click for the menu, double click for the action set in settings. Its position and size are remembered per monitor. Click-through mode is turned off from the **tray** menu. |
 | Taskbar countdown | Sits left of the tray icons and shows `R21 · Las Vegas · FP1` above `Fri 01:30 · in 2d 6h`. While a session runs it shows `● FP1` / `LIVE`, or `● Q2` when the live feed knows the qualifying part. Click: panel. Drag: move. Drag the left edge: resize. Double-click the left edge: automatic width. |
 

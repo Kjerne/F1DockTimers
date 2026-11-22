@@ -188,6 +188,81 @@ private Q_SLOTS:
         }
         p.cycle(1);
         QCOMPARE(p.view, QStringLiteral("schedule"));
+        // The Settings tab: every page and its sub-tabs fit the panel too.
+        p.showSettings(0);
+        for (int i = 0; i < settingsPages().size(); ++i) {
+            p.setSettingsPage(i);
+            QApplication::processEvents();
+            QCOMPARE(p.view, SETTINGS_VIEW);
+            QVERIFY(p.settingsForm()->pageWidget(i)->isVisible());
+            QVERIFY2(p.scroll->widget()->minimumSizeHint().width() <= p.scroll->viewport()->width() + 1,
+                     qPrintable(settingsPages()[i].key));
+            QVERIFY(!p.grab().isNull());
+        }
+    }
+
+    void settingsTabKeepsUnsavedEditsAndSaves() {
+        Fixture f;
+        int saves = 0;
+        f.ctx.saveSettings = [&saves] { ++saves; };
+        F1Panel p(&f.ctx, QStringLiteral("popup"));
+        p.resize(500, 690);
+        p.show();
+        p.setView(QStringLiteral("drivers"), false);
+        p.toggleSettings();   // the gear
+        QCOMPARE(p.view, SETTINGS_VIEW);
+        SettingsForm* form = p.settingsForm();
+        PillButton* save = nullptr;
+        for (PillButton* b : kids<PillButton>(&p))
+            if (b->toolTip().startsWith(QStringLiteral("Save and apply"))) save = b;
+        QVERIFY(save && save->isVisible() && !save->isEnabled());   // always there, greyed out until an edit
+        auto* style = qobject_cast<QComboBox*>(form->control(QStringLiteral("p_style")));
+        style->setCurrentIndex(style->findData(QStringLiteral("custom")));
+        QVERIFY(form->dirty() && save->isEnabled());
+        p.setView(QStringLiteral("schedule"), false);   // leave and come back: the edit is still there
+        p.toggleSettings();
+        QCOMPARE(p.settingsForm(), form);
+        QCOMPARE(style->currentData().toString(), QStringLiteral("custom"));
+        p.openFresh();   // the popup opened again: stays on the unsaved settings
+        QCOMPARE(p.view, SETTINGS_VIEW);
+        QSignalSpy applied(&p, &F1Panel::settingsSaved);
+        p.saveSettings();
+        QTRY_COMPARE(applied.size(), 1);
+        QCOMPARE(f.settings.pill_style, QStringLiteral("custom"));
+        QCOMPARE(saves, 1);
+        QTRY_VERIFY(p.settingsForm() != form);
+        QVERIFY(!p.settingsForm()->dirty());
+        // Revert throws edits away.
+        auto* fmt = qobject_cast<QComboBox*>(p.settingsForm()->control(QStringLiteral("time_fmt")));
+        fmt->setCurrentIndex(fmt->findData(QStringLiteral("12h")));
+        p.revertSettings();
+        QCOMPARE(qobject_cast<QComboBox*>(p.settingsForm()->control(QStringLiteral("time_fmt")))->currentData().toString(),
+                 f.settings.time_format);
+        p.toggleSettings();
+        QCOMPARE(p.view, QStringLiteral("schedule"));
+    }
+
+    void trayPopupOpensOnASettingsPage() {
+        Fixture f;
+        f.settings.popup_pinned = true;
+        TrayPopup popup(&f.ctx, &f.settings);
+        popup.showAt(QRect(), settingsPageIndex(QStringLiteral("live")));
+        QVERIFY(popup.isVisible());
+        QCOMPARE(popup.panel->view, SETTINGS_VIEW);
+        QCOMPARE(popup.panel->settingsPage, 4);
+        QVERIFY(popup.panel->settingsForm()->pageWidget(4)->isVisible());
+        popup.panel->showSettings(settingsPageIndex(QStringLiteral("taskbar")));
+        QVERIFY(popup.panel->settingsForm()->pageWidget(2)->isVisible());
+        popup.hide();
+    }
+
+    void widgetPanelHasNoSettingsTab() {
+        Fixture f;
+        F1Panel p(&f.ctx, QStringLiteral("widget"));
+        QSignalSpy asked(&p, &F1Panel::settingsRequested);
+        p.setView(SETTINGS_VIEW, false);
+        QVERIFY(p.view != SETTINGS_VIEW);
+        QCOMPARE(asked.size(), 1);
     }
 
     void scheduleTabShowsSessionsWeatherAndMeasured() {

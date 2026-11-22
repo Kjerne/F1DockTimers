@@ -23,7 +23,8 @@ class TrayPopup : public QWidget {
 public:
     TrayPopup(Ctx* ctx, Settings* settings, QWidget* parent = nullptr);
     void toggle(const QRect& iconRect);
-    void showAt(const QRect& iconRect);
+    // Open above the tray icon; with `settingsPage` >= 0 on that page of the Settings tab.
+    void showAt(const QRect& iconRect, int settingsPage = -1);
     void hideAnimated();
     F1Panel* panel;
 

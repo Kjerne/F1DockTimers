@@ -12,6 +12,7 @@
 #include <QSettings>
 #include <QToolTip>
 #include <QCursor>
+#include <QElapsedTimer>
 #include <QImage>
 
 namespace f1::ui {
@@ -363,7 +364,12 @@ void TaskbarPill::tick(qint64 now, bool force) {
 std::optional<TaskbarPill::Anchor> TaskbarPill::anchor() const {
     QScreen* screen = QGuiApplication::primaryScreen();
     if (!screen) return std::nullopt;
-    if (const auto rects = winshell::taskbarRects()) {
+    if (auto rects = winshell::taskbarRects(myRect())) {
+        if (rects->anchor.isValid()) {
+            static QElapsedTimer clock;
+            if (!clock.isValid()) clock.start();
+            rects->anchor = steadyAnchor(rects->bar, rects->anchor, clock.elapsed() / 1000.0);
+        }
         const double d = screen->devicePixelRatio();
         const QRect sg = screen->geometry();
         auto logical = [&](const QRect& r) {
@@ -387,6 +393,31 @@ std::optional<TaskbarPill::Anchor> TaskbarPill::anchor() const {
         return Anchor{bar, icon.isValid() ? icon : QRect(bar.right() - 260, bar.top(), 260, bar.height()), false};
     }
     return std::nullopt;
+}
+
+std::optional<QRect> TaskbarPill::myRect() const {
+    if (m_embed) return winshell::windowVisible(m_embed->hwnd) ? m_embed->windowRect() : std::nullopt;
+    return isVisible() ? winshell::windowRect(static_cast<quintptr>(winId())) : std::nullopt;
+}
+
+QRect TaskbarPill::steadyAnchor(const QRect& bar, const QRect& anchor, double now) const {
+    const bool vertical = bar.height() > bar.width();   // the tray is right (or at the bottom)
+    const int edge = vertical ? anchor.top() : anchor.left();
+    if (!m_dockEdge || m_dockEdge->first != bar || edge <= m_dockEdge->second || m_press) {
+        m_dockEdge = std::pair{bar, edge};   // first time, pushed outward, taskbar changed, or being dragged
+        m_dockSince.reset();
+        return anchor;
+    }
+    if (!m_dockSince) m_dockSince = now;
+    if (now - *m_dockSince >= DOCK_SETTLE_S) {   // the gap stayed open: move into it
+        m_dockEdge = std::pair{bar, edge};
+        m_dockSince.reset();
+        return anchor;
+    }
+    QRect held = anchor;
+    if (vertical) held.setTop(m_dockEdge->second);
+    else held.setLeft(m_dockEdge->second);
+    return held;
 }
 
 double TaskbarPill::maxPx() const { return m_settings->pill_font_px * m_theme->scale; }

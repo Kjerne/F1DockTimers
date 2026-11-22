@@ -94,6 +94,7 @@ class PillButton : public QWidget {
     Q_OBJECT
 public:
     PillButton(const QString& text, const Theme& theme, bool selected = false, QWidget* parent = nullptr);
+    void setSelected(bool on);   // drawn greyed out while disabled
 Q_SIGNALS:
     void clicked();
 

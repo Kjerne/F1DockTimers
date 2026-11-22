@@ -35,7 +35,9 @@ public:
     void quit();
     void openPanel();
     void saveSettings();
-    void openSettings();
+    // Settings live in the tray panel as a tab: open the panel on it. `page`: an index into
+    // ui::settingsPages(); -1 keeps the last one.
+    void openSettings(int page = -1);
     void applySettings();
     void screenshots(const QString& dir, const QStringList& tabs);
     void showWidget(bool on);
@@ -68,7 +70,6 @@ private:
     ui::Ctx m_ctx{};
     ui::TrayPopup* m_popup = nullptr;
     ui::DesktopWidget* m_widget = nullptr;
-    QPointer<QDialog> m_settingsDialog;
     ui::Theme m_theme;
     Zone m_zone;
     DataStore* m_store;

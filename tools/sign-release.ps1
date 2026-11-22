@@ -70,11 +70,17 @@ New-Item -ItemType Directory -Force (Split-Path $OutFile -Parent) | Out-Null
 [IO.File]::WriteAllBytes($OutFile, $sig)
 Write-Host "Signed: $OutFile"
 
+$uploaded = $false
 if ($Upload) {
     gh release upload "v$Version" $OutFile --repo $repo --clobber
-    if ($LASTEXITCODE -ne 0) { throw 'Upload failed; upload the file on the release page by hand.' }
-    Write-Host "Uploaded to https://github.com/$repo/releases/tag/v$Version"
-} elseif (-not $Yes) {
+    if ($LASTEXITCODE -eq 0) {
+        $uploaded = $true
+        Write-Host "Uploaded to https://github.com/$repo/releases/tag/v$Version"
+    } else {
+        Write-Warning 'The GitHub CLI could not upload it (not installed or not logged in: run "gh auth login" once). Upload it by hand instead.'
+    }
+}
+if (-not $uploaded -and -not $Yes) {
     Write-Host 'Upload SHA256SUMS.txt.sig to the release (opening its edit page).'
     Start-Process "https://github.com/$repo/releases/edit/v$Version"
 }
