@@ -1,14 +1,7 @@
-.venv/
-__pycache__/
-*.pyc
-dist/
-build/work/
-build/work-portable/
-build/app.ico
-*.spec.bak
-.pytest_cache/
-upload/
-
-# Store / winget working files
-build/msix-stage/
-manifests/
+/build/
+/out/
+/reference-python/
+/.vs/
+*.user
+CMakeUserPresets.json
+/dist/

@@ -2,14 +2,16 @@
 
 | Component | Use | License |
 | --- | --- | --- |
-| [Noctalia Formula 1 plugin](https://github.com/noctalia-dev/community-plugins/tree/main/f1) by gcap0n1 | Design, behaviour and logic ported to Windows | MIT (full text in `docs/NOCTALIA-F1-LICENSE.txt`) |
+| [Noctalia Formula 1 plugin](https://github.com/noctalia-dev/community-plugins/tree/main/f1) by gcap0n1 | Design, behaviour and logic ported to Windows | MIT (`licenses/MIT-noctalia-f1-omarchy-f1-f1-circuits.txt`) |
 | [omarchy-f1](https://github.com/Snackwrap/omarchy-f1) by Robert (leafbox) | Origin of the plugin | MIT |
-| [f1-circuits](https://github.com/bacinger/f1-circuits) by Tomislav Bacinger | Circuit outlines (`f1win/assets/tracks.txt`, unchanged from the plugin) | MIT |
-| [Noto Sans](https://github.com/notofonts/latin-greek-cyrillic) | Bundled typeface | SIL Open Font License 1.1 (`f1win/assets/fonts/OFL.txt`) |
+| [f1-circuits](https://github.com/bacinger/f1-circuits) by Tomislav Bacinger | Circuit outlines (`assets/tracks.txt`, unchanged from the plugin) | MIT |
+| [Noto Sans](https://github.com/notofonts/latin-greek-cyrillic) | Bundled typeface | SIL Open Font License 1.1 (`assets/fonts/OFL.txt`) |
 | [Tabler Icons](https://tabler.io/icons) | Flag, pin, gear, refresh glyph paths | MIT |
-| [Qt 6 / PySide6](https://www.qt.io/qt-for-python) | UI toolkit | LGPL-3.0 (dynamically linked; the bundled Qt DLLs can be replaced; texts in `licenses/`) |
-| [keyring](https://github.com/jaraco/keyring) | Windows Credential Manager access | MIT |
-| [tzdata](https://github.com/python/tzdata) | IANA time zone database | Apache-2.0 |
+| [Qt 6](https://www.qt.io/) | UI toolkit, networking | LGPL-3.0 (dynamically linked; the bundled Qt DLLs can be replaced; texts and notice in `licenses/`) |
+| Microsoft Visual C++ runtime | C++ standard library | Redistributable under the Visual Studio licence terms |
+
+Passwords go to the Windows Credential Manager through Windows' own API, and time zones come from
+Windows through Qt; the C++ build needs no other libraries.
 
 ## Data
 

@@ -10,9 +10,11 @@ passwords or tokens).
 
 ## Pull requests
 
-1. Run the app from source: `python -m venv .venv`, `.venv\Scripts\pip install -r requirements-dev.txt`,
-   then `.venv\Scripts\pythonw launch.pyw`.
-2. Run the tests: `.venv\Scripts\python -m pytest`.
+1. Build the app from source: Visual Studio 2022 (C++ workload) and Qt 6.8.3 for MSVC 2022 64-bit,
+   then `cmake --workflow --preset release` in the repository folder. That builds and runs every
+   test; the app is `build\msvc\Release\F1DockTimers.exe`. Details in [docs/BUILD.md](docs/BUILD.md).
+2. Use `NOCTALIA_F1_HOME` for a separate settings and cache folder while testing, so your own
+   settings stay untouched.
 3. Keep to the rules the app follows:
    - Only real data from Jolpica, OpenF1 and the F1 live timing feed; nothing made up.
    - No paywall workarounds; respect the services' request limits.
@@ -30,8 +32,9 @@ English is built in. To add a language, copy `lang/_template.txt` to `lang/<code
 `da.txt`), fill in `@code` and `@name`, and translate the lines you want; empty lines stay English.
 Keep `{placeholders}` as they are. You can try it without building anything: put the file in
 `%APPDATA%\F1DockTimers\lang` (Settings > General > Language > Open language folder), pick it and
-restart the app. New texts in the code go through `T("...")`; run `python tools/make_lang_template.py`
-to update the template (a test fails while it is out of date).
+restart the app. New texts in the code go through `T(QStringLiteral("..."))` (or `F1_TR_NOOP("...")`
+for texts kept in an array); run `python tools/make_lang_template.py` to update the template (a test
+fails while it is out of date).
 
 ## AI tools
 

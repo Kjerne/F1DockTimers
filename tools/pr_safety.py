@@ -21,28 +21,34 @@ ALLOWED_HOSTS = {
     "about.signpath.io", "signpath.org", "www.python.org", "doc.qt.io", "www.qt.io",
 }
 # Paths that control how the app is built, checked and released.
-SENSITIVE = re.compile(r"^(\.github/|build/|tools/|pyproject\.toml$|requirements[^/]*\.txt$)")
-CODE = re.compile(r"\.(py|pyw|ps1|psm1|bat|cmd|sh|iss|spec|js|ts)$")
+# The release key, the app manifest and resources, and the build files count as well.
+SENSITIVE = re.compile(r"^(\.github/|\.gitattributes$|build/|packaging/|tools/|CMakeLists\.txt$|CMakePresets\.json$|"
+                       r"\w+/CMakeLists\.txt$|src/core/release_key\.h$|src/app\.(manifest|rc)$|"
+                       r"pyproject\.toml$|requirements[^/]*\.txt$)")
+CODE = re.compile(r"\.(cpp|cc|cxx|h|hpp|rc|cmake|in|py|pyw|ps1|psm1|bat|cmd|sh|iss|spec|js|ts)$|CMakeLists\.txt$")
 
 RULES = [
     ("runs other programs", re.compile(
-        r"\b(subprocess|os\.system|os\.popen|os\.startfile|ShellExecute|CreateProcess|QProcess|WinExec)\b")),
+        r"\b(subprocess|os\.system|os\.popen|os\.startfile|ShellExecute\w*|CreateProcess\w*|QProcess|WinExec|"
+        r"_?w?system|_?w?popen|_wexec\w*|_wspawn\w*)\b(?!\.)")),
     ("dynamic code", re.compile(r"\b(eval|exec|compile|__import__|importlib\.import_module|marshal\.loads)\s*\(")),
     ("unsafe deserialisation", re.compile(r"\b(pickle|shelve|dill)\.(load|loads)\b|yaml\.load\s*\((?!.*SafeLoader)")),
     ("memory / process tricks", re.compile(
         r"\b(WriteProcessMemory|ReadProcessMemory|VirtualAlloc|VirtualProtect|CreateRemoteThread|OpenProcess|"
-        r"LoadLibrary|GetProcAddress)\b")),
+        r"LoadLibrary\w*|GetProcAddress|QLibrary)\b")),
     ("reads input, clipboard or screen", re.compile(
         r"\b(SetWindowsHookEx|GetAsyncKeyState|GetKeyState|RegisterRawInputDevices|GetClipboardData|"
         r"OpenClipboard|QClipboard|clipboard\(\)|grabWindow|BitBlt|PrintWindow|ImageGrab|pynput|keyboard\.)")),
     ("registry / startup changes", re.compile(
-        r"\b(winreg\.(SetValue|SetValueEx|CreateKey|CreateKeyEx|DeleteKey|DeleteValue)|RegSetValue|"
-        r"RegSetKeyValue|RegCreateKey|RegDelete|schtasks)\b|CurrentVersion\\\\Run|\\\\Startup")),
+        r"\b(winreg\.(SetValue|SetValueEx|CreateKey|CreateKeyEx|DeleteKey|DeleteValue)|Reg(SetValue|SetKeyValue|"
+        r"CreateKey|Delete)\w*|QSettings|schtasks)\b|CurrentVersion\\\\Run|\\\\Startup")),
     ("deletes or moves files", re.compile(
         r"\b(shutil\.(rmtree|move)|os\.(remove|unlink|rmdir|removedirs|rename|replace)|\.unlink\(|"
-        r"\.rmdir\(|DeleteFile|MoveFile|SHFileOperation)\b")),
+        r"\.rmdir\(|DeleteFile\w*|MoveFile\w*|SHFileOperation\w*|QFile::remove|QFile::rename|removeRecursively|"
+        r"std::filesystem::remove\w*)\b")),
     ("credentials near logs", re.compile(
-        r"\b(log(ger)?|logging)\.\w+\(.*\b(password|passwd|token|secret|authorization)\b", re.I)),
+        r"\b(log(ger)?|logging)\.\w+\(.*\b(password|passwd|token|secret|authorization)\b|"
+        r"\bq(C)?(Debug|Info|Warning|Critical)\b.*\b(password|passwd|token|secret|authorization)\b", re.I)),
     ("plaintext secret", re.compile(
         r"\b(password|passwd|api_key|apikey|secret|token)\s*[:=]\s*[\"'][^\"']{6,}[\"']", re.I)),
     ("long encoded blob (possible hidden payload)", re.compile(

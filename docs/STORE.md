@@ -1,5 +1,10 @@
 # Publishing F1DockTimers in the Microsoft Store
 
+> **Note (1.1.0):** the Microsoft Store package is not ported to the C++ build yet. The steps below
+> describe the Python 1.0.x MSIX (its `build/build-msix.ps1` is in the 1.0.8 sources). The Store
+> logos and manifest moved to `packaging/store/`. Until a C++ MSIX exists, the Store keeps
+> serving 1.0.8.
+
 The Store version is signed by Microsoft, so Windows shows **no SmartScreen warning**, and the
 Store keeps it updated. The app notices it runs from the Store: its own update check switches
 off, and "Start with Windows" opens Windows' Settings > Apps > Startup (the Store version starts

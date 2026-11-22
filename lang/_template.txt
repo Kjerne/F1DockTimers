@@ -13,20 +13,7 @@
 @code =
 @name =
 
-# f1win/app.py
-Install update {version}… = 
-{app_title} {version} is available = 
-Click here, or use "Install update" in the tray menu. = 
-{app_title} update = 
-<b>Version {version}</b> is available. You have {current}. = 
-Install and restart = 
-Open download page = 
-Release page = 
-Skip this version = 
-Later = 
-Downloading the update… = 
-Cancel = 
-\n\nYou can download it from the release page. = 
+# src/app.cpp
 Open Formula 1 panel = 
 Refresh data = 
 Desktop widget = 
@@ -38,13 +25,60 @@ Check for updates =
 Settings… = 
 Start with Windows = 
 Exit = 
+Install update {version}… = 
+{app_title} {version} is available = 
+Click here, or use "Install update" in the tray menu. = 
+{app_title} update = 
+<b>Version {version}</b> is available. You have {current}. = 
+This release is not signed with the F1DockTimers release key, so it is not installed automatically. You can download it from the release page. = 
+Install and restart = 
+Open download page = 
+Release page = 
+Skip this version = 
+Later = 
+Downloading the update… = 
+Cancel = 
+\n\nYou can download it from the release page. = 
 Widget is click-through. Turn it off from the tray icon menu. = 
 
-# f1win/core/credentials_hint.py
-Live data during a session needs the OpenF1 Sponsor plan. Add your OpenF1 username and password in Settings › Live data (stored in Windows Credential Manager). On the Free plan the session's results appear here after it ends, and every other tab keeps working. = 
+# src/core/notifications.cpp
+{where} · {get} results = 
+Lights out {fmt_long} ({when}) = 
+{name} starts {fmt_long} ({when}) = 
 
-# f1win/core/sessions.py
+# src/core/pilltext.cpp
+Round, e.g. R21 = 
+Short race name, e.g. Las Vegas = 
+Las Vegas Grand Prix = 
+FP1 / FP2 / Q2 / Sprint / GP = 
 Practice 1 = 
+Local start, e.g. Fri 01:30 = 
+20 Nov = 
+in 2d 6h 19m = 
+Las Vegas = 
+USA = 
+Las Vegas Strip Street Circuit = 
+LIVE, or LIVE · 12:34 left = 
+Track flag while live = 
+Leader while live = 
+Air temperature: live at the track, else the forecast, e.g. 18° = 
+Chance of rain during the session, e.g. 20% = 
+Forecast sky, e.g. Partly cloudy = 
+Temperature and rain chance, e.g. 18° · 20% = 
+Track temperature while live, e.g. 31° = 
+Session and countdown = 
+Race and countdown = 
+Compact (one line) = 
+No upcoming race = 
+live now = 
+Weekend over = 
+done = 
+Raining = 
+LIGHTS OUT = 
+NEXT · {upper} = 
+Race finished = 
+
+# src/core/sessions.cpp
 Practice 2 = 
 Practice 3 = 
 Sprint Quali = 
@@ -52,7 +86,7 @@ Sprint =
 Qualifying = 
 Race = 
 
-# f1win/core/teams.py
+# src/core/teams.cpp
 Green flag = 
 Track clear = 
 Yellow flag = 
@@ -63,7 +97,7 @@ Blue flag =
 Safety car = 
 Virtual safety car = 
 
-# f1win/core/timeutil.py
+# src/core/timeutil.cpp
 Mon = 
 Tue = 
 Wed = 
@@ -88,11 +122,10 @@ live =
 {hours}h = 
 {minutes}m = 
 <1m = 
-live now = 
 in {time} = 
 never = 
 
-# f1win/core/weather.py
+# src/core/weather.cpp
 Wet: rain expected = 
 Rain possible ({chance}%) = 
 Dry: rain unlikely ({chance}%) = 
@@ -112,27 +145,22 @@ Thunderstorm =
 {speed} mph = 
 {speed} km/h = 
 
-# f1win/services/notifier.py
-{where} · {get} results = 
-Lights out {fmt_long} ({when}) = 
-{name} starts {fmt_long} ({when}) = 
-
-# f1win/services/updater.py
+# src/services/updater.cpp
 This copy is updated by the Microsoft Store. = 
 No release published yet. = 
 Couldn't reach GitHub ({status}). = 
 You're up to date (version {version}). = 
 Version {version} is available (you have {current}). = 
+This release is not signed with the F1DockTimers release key, so it is not installed automatically. = 
 This release has no verifiable download for your copy. Opening the release page. = 
 The download is unexpectedly large; not installing. = 
 The download failed or was cancelled. = 
 The download came from an unexpected server; not installing. = 
 The download doesn't match GitHub's published checksum; not installing. = 
 Not installing: {why}. = 
-Couldn't verify the download ({name}). = 
 Couldn't start the update ({name}). = 
 
-# f1win/ui/desktop_widget.py
+# src/ui/desktop_widget.cpp
 Formula 1 widget = 
 Formula 1 desktop widget = 
 Refresh = 
@@ -142,29 +170,27 @@ Always on top =
 Click-through (turn off from the tray menu) = 
 Hide widget = 
 
-# f1win/ui/panel.py
+# src/ui/panel.cpp
 Schedule = 
 Weather = 
 Grid = 
+● Live = 
 Live = 
 Last = 
 Drivers = 
 Teams = 
-● Live = 
 FORMULA 1 = 
 Grand Prix = 
 A newer version is available. Click to update. = 
-Update {update_version} available = 
 Update {version} available = 
 Round {round} · {season} = 
 Loading… = 
-No upcoming race = 
 
-# f1win/ui/popup.py
+# src/ui/popup.cpp
 Formula 1 = 
 Formula 1 panel = 
 
-# f1win/ui/settings_dialog.py
+# src/ui/settings_dialog.cpp
 Launch F1DockTimers automatically when you sign in to Windows. = 
 Ask GitHub once a day whether a newer F1DockTimers exists. Sends no personal data. = 
 On: start quietly in the tray. Off: open the panel at launch. = 
@@ -230,12 +256,13 @@ Appearance =
 Taskbar = 
 Live data = 
 About = 
+Colour = 
 Start minimized to the tray (no popup at launch) = 
 Show the desktop widget = 
 Default tab = 
+Time format = 
 24-hour = 
 12-hour = 
-Time format = 
 Metric (°C, km/h) = 
 Imperial (°F, mph) = 
 Units for the weather forecast and track conditions. = 
@@ -252,6 +279,8 @@ Schedule refresh =
 Standings refresh = 
 Refresh data now = 
 Clear cache = 
+Cache = 
+Cache cleared. Data will be fetched again. = 
 Check for updates automatically (once a day) = 
 Version {version}. Updates come automatically from the Microsoft Store. = 
 Check for updates (you have {version}) = 
@@ -259,11 +288,11 @@ Export settings… =
 Save all settings to a .json file (no passwords) = 
 Import settings… = 
 Load settings from an exported .json file = 
-Original = 
 Accent colour = 
+Original = 
+Typeface = 
 Noto Sans (original) = 
 Monospace = 
-Typeface = 
 Font size = 
 Interface scale = 
 Popup opacity = 
@@ -272,13 +301,58 @@ Animations (circuit fade-in, start lights, popup slide) =
 Click-through (mouse passes through; turn off from the tray menu) = 
 Lock position and size (pin) = 
 Remember position and size = 
+Double-click on widget = 
 Open the tray panel = 
 Open settings = 
 Nothing = 
-Double-click on widget = 
+Show the taskbar countdown beside the tray icons = 
+Embed in the taskbar (experimental) = 
+Puts the countdown inside the Windows taskbar instead of floating over it. It then hides with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes trouble, turn it off. = 
+Place next to other taskbar widgets = 
+Sits beside other apps' widgets in the taskbar (e.g. a battery monitor) instead of on top of them. Position then adds extra space from there. = 
+On the taskbar: drag to move · drag the left edge to resize · double-click it to reset. = 
+Style = 
+Noctalia (dark panel, accent text) = 
+Match my Windows taskbar (transparent, system colours) = 
+Custom colours = 
+Background = 
+Background opacity = 
+First line colour = 
+Second line colour = 
+Live highlight = 
+Border colour = 
+Border = 
+ px = 
+0 (square box) = 
+Corner radius = 
+Automatic = 
+Width = 
+Full taskbar height = 
+Custom = 
+Height = 
+ px left of the tray = 
+Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons (only while "Place next to other taskbar widgets" is off). = 
+Position = 
+Text size (max) = 
+Auto-fit text to the pill size = 
+First line bold = 
+Alignment = 
+Left = 
+Centre = 
+Lines = 
+Two lines = 
+One line = 
+(custom) = 
+Layout preset = 
+First line = 
+Second line = 
+First line (live) = 
+Second line (live) = 
+Tokens:  = 
+  (hover for examples) = 
+Countdown target = 
 Next race = 
 Next session = 
-Countdown target = 
 Race = always to the Grand Prix. Session = to FP1, FP2, Quali … in turn. Hover for more. = 
 (none) = 
 Favourite driver = 
@@ -310,52 +384,6 @@ Lead time =
 Session-time corrections = 
 Only needed if a delay isn't picked up automatically. Resets next round. = 
 No upcoming race loaded. = 
-Colour = 
-Show the taskbar countdown beside the tray icons = 
-Embed in the taskbar (experimental) = 
-Puts the countdown inside the Windows taskbar instead of floating over it. It then hides with the taskbar (fullscreen games, auto-hide) and never covers menus. If it causes trouble, turn it off. = 
-Place next to other taskbar widgets = 
-Sits beside other apps' widgets in the taskbar (e.g. a battery monitor) instead of on top of them. Position then adds extra space from there. = 
-On the taskbar: drag to move · drag the left edge to resize · double-click it to reset. = 
-Noctalia (dark panel, accent text) = 
-Match my Windows taskbar (transparent, system colours) = 
-Custom colours = 
-Style = 
-Border = 
-Background = 
-Background opacity = 
-First line colour = 
-Second line colour = 
-Live highlight = 
-Border colour = 
- px = 
-0 (square box) = 
-Corner radius = 
-Automatic = 
-Width = 
-Full taskbar height = 
-Custom = 
-Height = 
- px left of the tray = 
-Extra distance from the tray (or from the widget it docks beside). Negative values move it closer, even over the tray icons (only while "Place next to other taskbar widgets" is off). = 
-Position = 
-Text size (max) = 
-Auto-fit text to the pill size = 
-First line bold = 
-Left = 
-Centre = 
-Alignment = 
-Two lines = 
-One line = 
-Lines = 
-(custom) = 
-Layout preset = 
-First line = 
-Second line = 
-First line (live) = 
-Second line (live) = 
-Tokens:  = 
-  (hover for examples) = 
 OpenF1 Free · results after each session = 
 OpenF1 Free + F1 live stream (experimental) = 
 OpenF1 Sponsor · live during sessions (account) = 
@@ -377,19 +405,31 @@ Settings exported. Passwords are not included; window positions stay on this PC.
 Import settings = 
 Imported and applied (1 setting changed). Settings will reopen with the new values. = 
 Imported and applied ({count} settings changed). Settings will reopen with the new values. = 
-Cache = 
-Cache cleared. Data will be fetched again. = 
 OpenF1 = 
 Could not store the password in Windows Credential Manager. = 
 
-# f1win/ui/tabs/common.py
+# src/ui/tabs/common.cpp
+Couldn't reach F1 data right now. Retrying automatically. = 
+{pts} pts = 
+{laps} laps = 
+ · {pts} pts = 
++{places} places = 
+Qualified P{qpos}, starts P{pos} ({change} places) = 
+Official = 
+The FIA starting grid with all penalties applied. = 
+Provisional = 
+The order from qualifying, before penalties. = 
+1 driver starts further back than qualified. = 
+{count} drivers start further back than qualified. = 
+Same order as qualifying. = 
+Provisional: the qualifying order, before penalties. = 
 {wins}W = 
 1 win = 
 {wins} wins = 
 -{gap} = 
-Couldn't reach F1 data right now. Retrying automatically. = 
 
-# f1win/ui/tabs/live.py
+# src/ui/tabs/live.cpp
+Live data during a session needs the OpenF1 Sponsor plan. Add your OpenF1 username and password in Settings › Live data (stored in Windows Credential Manager). On the Free plan the session's results appear here after it ends, and every other tab keeps working. = 
 OpenF1 rejected the stored username and password. Check them in Settings › Formula 1. = 
 OpenF1 refused the access token. A new one is requested automatically. = 
 The live feed is rate limited; it will retry shortly. = 
@@ -401,16 +441,18 @@ No session running right now. =
 Live positions and track flags appear here automatically during practice, qualifying and the race. = 
 Next: {name} · {fmt_datetime} = 
 {pits} pit = 
-Final classification · {when} · OpenF1 = 
 Final classification · OpenF1 = 
-{laps} laps = 
- · {pts} pts = 
+Final classification · {when} · OpenF1 = 
+SESSIONS · {where} = 
+The grid the race started from, with penalties (Jolpica). = 
+Official grid with penalties, checked again just before the race. = 
+{name} is running; live timing shows above while it is on. = 
+OpenF1 has no classification for {name}. = 
+The classification of {name} appears here about 20 to 30 minutes after it ends. = 
+{name} · final classification · {when} · OpenF1 = 
 {fmt_clock} left = 
 
-# f1win/ui/tabs/schedule.py
-LIGHTS OUT = 
-NEXT · {upper} = 
-Race finished = 
+# src/ui/tabs/schedule.cpp
 Countdown = 
 SESSIONS = 
 START = 
@@ -424,20 +466,10 @@ Start time corrected by hand in Settings =
 Published schedule time = 
 * {delay} min vs. published time = 
 
-# f1win/ui/tabs/tables.py
+# src/ui/tabs/tables.cpp
 No grid available. It appears here after qualifying. = 
 STARTING GRID = 
-Official = 
-The FIA starting grid with all penalties applied. = 
-Provisional = 
-The order from qualifying, before penalties. = 
-1 driver starts further back than qualified. = 
-{count} drivers start further back than qualified. = 
-Same order as qualifying. = 
 Official grid with penalties (OpenF1), checked again just before the race. = 
-+{places} places = 
-Qualified P{qpos}, starts P{pos} ({change} places) = 
-Provisional: the qualifying order, before penalties. = 
 Official starting grid = 
 No results yet = 
 LAST RACE · {upper} = 
@@ -454,7 +486,7 @@ Show results =
 Reveals everything up to now. Hidden again when the next qualifying, sprint or race starts. = 
 Turn spoiler-free mode off in Settings › Formula 1. = 
 
-# f1win/ui/tabs/weather.py
+# src/ui/tabs/weather.cpp
 Rained = 
 Dry = 
 Wet = 
@@ -482,7 +514,6 @@ Weather data by Open-Meteo.com (CC BY 4.0) =
 TRACK NOW = 
 Air {temp} = 
 Track {temp} = 
-Raining = 
 Measured at the track by F1 and updated live during the session.\nRaining / Dry: whether F1's track sensors report rain right now. = 
 Wind {speed} = 
 Live from F1's timing feed. = 
@@ -501,35 +532,12 @@ After the session =
 Chance of rain in this hour: {chance}% = 
 {mm} mm rain = 
 
-# f1win/ui/taskbar_pill.py
-Round, e.g. R21 = 
-Short race name, e.g. Las Vegas = 
-Las Vegas Grand Prix = 
-FP1 / FP2 / Q2 / Sprint / GP = 
-Local start, e.g. Fri 01:30 = 
-20 Nov = 
-in 2d 6h 19m = 
-Las Vegas = 
-USA = 
-Las Vegas Strip Street Circuit = 
-LIVE, or LIVE · 12:34 left = 
-Track flag while live = 
-Leader while live = 
-Air temperature: live at the track, else the forecast, e.g. 18° = 
-Chance of rain during the session, e.g. 20% = 
-Forecast sky, e.g. Partly cloudy = 
-Temperature and rain chance, e.g. 18° · 20% = 
-Track temperature while live, e.g. 31° = 
-Session and countdown = 
-Race and countdown = 
-Compact (one line) = 
-Weekend over = 
-done = 
+# src/ui/taskbar_pill.cpp
 Formula 1 countdown = 
 {name}\n = 
 \n\nClick: panel · Drag: move · Drag left edge: resize · Right-click: menu = 
 
-# f1win/ui/widgets.py
+# src/ui/widgets.cpp
 {text} tab = 
 Start lights = 
 Circuit outline = 
